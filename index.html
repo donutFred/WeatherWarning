@@ -9,10 +9,10 @@
       content="Shows your approximate location, current time, a map and the local weather."
     />
 
-    <!-- Your styles -->
+    <!-- Your stylesheet -->
     <link rel="stylesheet" href="style.css" />
 
-    <!-- Leaflet CSS (official CDN example) -->
+    <!-- Leaflet CSS (from official quick-start) -->
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -47,7 +47,16 @@
       <section class="card">
         <h2>Map</h2>
         <div id="map" class="map"></div>
-        <p class="note">Map data © OpenStreetMap contributors</p>
+        <p class="note">
+          Map data ©
+          <a
+            href="https://www.openstreetmap.org/copyright"
+            target="_blank"
+            rel="noreferrer"
+            >OpenStreetMap</a
+          >
+          contributors
+        </p>
       </section>
 
       <section class="card">
@@ -71,14 +80,14 @@
       </footer>
     </main>
 
-    <!-- Leaflet JS (official CDN example) -->
+    <!-- Leaflet JS (from official quick-start) -->
     <script
       src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
       integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin=""
     ></script>
 
-    <!-- Your script -->
+    <!-- Your script (must be last so the DOM exists) -->
     <script src="script.js"></script>
   </body>
 </html>
