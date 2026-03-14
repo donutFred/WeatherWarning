@@ -4,10 +4,20 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Where & When — Disruptive Mining</title>
-    <link rel="stylesheet" href="style.css" />
     <meta
       name="description"
-      content="Shows your approximate location and current local time."
+      content="Shows your approximate location, current time, a map and the local weather."
+    />
+
+    <!-- Your styles -->
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- Leaflet CSS (official CDN example) -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
     />
   </head>
   <body>
@@ -24,8 +34,6 @@
           <div class="note">Accuracy: <span id="acc">—</span> meters</div>
         </div>
         <div id="locationError" class="error hidden"></div>
-        <!-- Optional: add a small map container in v2 -->
-        <!-- <div id="map" class="map"></div> -->
       </section>
 
       <section class="card">
@@ -36,6 +44,26 @@
         </div>
       </section>
 
+      <section class="card">
+        <h2>Map</h2>
+        <div id="map" class="map"></div>
+        <p class="note">Map data © OpenStreetMap contributors</p>
+      </section>
+
+      <section class="card">
+        <h2>Current Weather</h2>
+        <div id="weatherStatus" class="status">Waiting for your location…</div>
+        <div id="weatherData" class="data hidden">
+          <div><strong>Condition:</strong> <span id="wxDesc">—</span></div>
+          <div><strong>Temperature:</strong> <span id="wxTemp">—</span></div>
+          <div><strong>Feels like:</strong> <span id="wxFeels">—</span></div>
+          <div><strong>Wind:</strong> <span id="wxWind">—</span></div>
+          <div><strong>Humidity:</strong> <span id="wxHum">—</span></div>
+          <div class="note"><span id="wxUpdated">—</span></div>
+        </div>
+        <div id="weatherError" class="error hidden"></div>
+      </section>
+
       <footer>
         <p class="subtle">
           We don’t send your location anywhere. It stays in your browser.
@@ -43,6 +71,14 @@
       </footer>
     </main>
 
-    <script src="script.js" defer></script>
+    <!-- Leaflet JS (official CDN example) -->
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+
+    <!-- Your script -->
+    <script src="script.js"></script>
   </body>
 </html>
