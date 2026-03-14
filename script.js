@@ -78,7 +78,8 @@ function showPosition(pos) {
     accuracyCircle.setLatLng([latitude, longitude]).setRadius(accuracy);
   }
 
-  // Load weather for these coordinates
+  // Address and weather for these coordinates
+  fetchAddress(latitude, longitude);
   fetchWeather(latitude, longitude);
 }
 
@@ -161,6 +162,46 @@ const WMO_DESCRIPTIONS = {
   99: "Thunderstorm with heavy hail",
 };
 
+const WMO_ICONS = {
+  0: "☀️",
+  1: "🌤",
+  2: "⛅",
+  3: "☁️",
+  45: "🌫",
+  48: "🌫",
+  51: "🌦",
+  53: "🌦",
+  55: "🌧",
+  56: "🌧❄️",
+  57: "🌧❄️",
+  61: "🌧",
+  63: "🌧",
+  65: "⛈",
+  66: "🌧❄️",
+  67: "🌧❄️",
+  71: "🌨",
+  73: "🌨",
+  75: "🌨",
+  77: "🌨",
+  80: "🌦",
+  81: "🌧",
+  82: "⛈",
+  85: "❄️",
+  86: "❄️",
+  95: "⛈",
+  96: "⛈",
+  99: "⛈",
+};
+
+function getWeatherIcon(code, isDay) {
+  const icon = WMO_ICONS[code] || "🌈";
+  if (!isDay) {
+    if (code === 0) return "🌙";
+    if ([1, 2, 3, 45, 48].includes(code)) return "🌜";
+  }
+  return icon;
+}
+
 function degToCompass(deg) {
   const dirs = [
     "N",
@@ -183,14 +224,96 @@ function degToCompass(deg) {
   return dirs[Math.round(deg / 22.5) % 16];
 }
 
+function extractSuburb(address) {
+  if (!address || typeof address !== "object") return null;
+  const keys = [
+    "suburb",
+    "neighbourhood",
+    "city_district",
+    "quarter",
+    "town",
+    "village",
+    "city",
+    "municipality",
+    "county",
+    "state",
+  ];
+
+  const found = keys.map((k) => address[k]).find(Boolean);
+  return found || null;
+}
+
+async function fetchAddress(lat, lon) {
+  const addrEl = document.getElementById("address");
+  try {
+    addrEl.textContent = "Fetching general location…";
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`,
+      {
+        headers: {
+          "User-Agent": "WeatherWarning/1.0"
+        }
+      }
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    const suburb = extractSuburb(data.address);
+    if (suburb) {
+      addrEl.textContent = suburb;
+    } else {
+      // final fallback to broader display name
+      addrEl.textContent = data.display_name
+        ? data.display_name.split(",").slice(-3).join(", ")
+        : "Approximate location";
+    }
+  } catch (err) {
+    console.warn("Reverse geocode failed", err);
+    addrEl.textContent = "Approximate location unknown";
+  }
+}
+
+function buildForecast(data) {
+  const today = new Date();
+  const rows = document.getElementById("forecastRows");
+  rows.innerHTML = "";
+
+  const times = data.time || [];
+  const gusts = data.windgusts_10m_max || [];
+  const dirs = data.winddirection_10m_dominant || [];
+
+  for (let i = 0; i < Math.min(times.length, 7); i++) {
+    const row = document.createElement("tr");
+    const dateCell = document.createElement("td");
+    const gustCell = document.createElement("td");
+    const dirCell = document.createElement("td");
+
+    const d = new Date(times[i]);
+    dateCell.textContent = d.toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+    gustCell.textContent = gusts[i] !== undefined ? `${Math.round(gusts[i])}` : "—";
+    dirCell.textContent =
+      dirs[i] !== undefined
+        ? `${degToCompass(dirs[i])} (${Math.round(dirs[i])}°)`
+        : "—";
+
+    row.append(dateCell, gustCell, dirCell);
+    rows.appendChild(row);
+  }
+}
+
 async function fetchWeather(lat, lon) {
   try {
     wxStatus.textContent = "Fetching weather…";
 
-    // Open‑Meteo "current" variables (no API key, CORS-friendly)
+    // Open‑Meteo current+daily forecast (7 days) variables
     const url =
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
       `&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,weather_code,is_day` +
+      `&daily=windgusts_10m_max,winddirection_10m_dominant` +
+      `&forecast_days=7` +
       `&timezone=auto`;
 
     const res = await fetch(url);
@@ -206,8 +329,10 @@ async function fetchWeather(lat, lon) {
         ? `${degToCompass(c.wind_direction_10m)} (${Math.round(c.wind_direction_10m)}°)`
         : "—";
 
-    document.getElementById("wxDesc").textContent =
-      desc + (c.is_day ? " (day)" : " (night)");
+    const readableDesc = desc + (c.is_day ? " (day)" : " (night)");
+    document.getElementById("wxDesc").textContent = readableDesc;
+    document.getElementById("wxIcon").textContent = getWeatherIcon(c.weather_code, c.is_day);
+    document.getElementById("wxIconLabel").textContent = readableDesc;
     document.getElementById("wxTemp").textContent =
       `${Math.round(c.temperature_2m)}°C`;
     document.getElementById("wxFeels").textContent =
@@ -218,6 +343,20 @@ async function fetchWeather(lat, lon) {
       `${Math.round(c.relative_humidity_2m)}%`;
     document.getElementById("wxUpdated").textContent = `Updated: ${c.time}`;
 
+    // Forecast table (7 days, strongest gust + direction)
+    const daily = data.daily || {};
+    if (daily.time && daily.windgusts_10m_max) {
+      buildForecast(daily);
+      document.getElementById("forecastData").classList.remove("hidden");
+      document.getElementById("forecastError").classList.add("hidden");
+      document.getElementById("forecastStatus").textContent = "7-day wind gust forecast ready.";
+    } else {
+      document.getElementById("forecastData").classList.add("hidden");
+      document.getElementById("forecastError").classList.remove("hidden");
+      document.getElementById("forecastError").textContent = "7-day forecast not available.";
+      document.getElementById("forecastStatus").textContent = "";
+    }
+
     wxData.classList.remove("hidden");
     wxErr.classList.add("hidden");
     wxStatus.textContent = "Weather loaded.";
@@ -225,6 +364,10 @@ async function fetchWeather(lat, lon) {
     wxData.classList.add("hidden");
     wxErr.classList.remove("hidden");
     wxErr.textContent = "Could not load weather data.";
+    document.getElementById("forecastData").classList.add("hidden");
+    document.getElementById("forecastError").classList.remove("hidden");
+    document.getElementById("forecastError").textContent = "Forecast unavailable.";
+    document.getElementById("forecastStatus").textContent = "";
     wxStatus.textContent = "";
     console.error(e);
   }

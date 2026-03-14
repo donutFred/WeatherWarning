@@ -28,9 +28,25 @@ body {
 }
 
 .container {
-  max-width: 720px;
+  max-width: 1400px;
+  width: min(100%, 1400px);
   margin: 0 auto;
-  padding: 32px 16px 48px;
+  padding: 24px 18px 40px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 900px) {
+  .container {
+    grid-template-columns: 1fr 1fr;
+  }
+  .container .card {
+    margin: 0;
+  }
+  .card.full-width {
+    grid-column: 1 / -1;
+  }
 }
 h1 {
   font-size: 2rem;
@@ -53,6 +69,24 @@ h1 {
 .status {
   color: var(--muted);
 }
+
+.wx-icon-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.wx-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.wx-icon-label {
+  color: var(--fg);
+  font-weight: 600;
+}
+
 .data {
   margin-top: 8px;
 }
@@ -61,6 +95,28 @@ h1 {
   margin-top: 6px;
   font-size: 0.95rem;
 }
+
+.forecast-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+.forecast-table th,
+.forecast-table td {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: 8px;
+  text-align: left;
+}
+
+.forecast-table th {
+  color: var(--muted);
+}
+
+.forecast-table td {
+  font-variant-numeric: tabular-nums;
+}
+
 .error {
   color: var(--error);
   margin-top: 10px;

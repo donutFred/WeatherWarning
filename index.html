@@ -23,7 +23,7 @@
   <body>
     <main class="container">
       <h1>Weather Warning</h1>
-      <p class="subtle">Advanced wind and weather warnings</p>
+      <p class="subtle">Advanced wind and weather warnings. (c) 2026 Steven Amor. steveamor12@gmail.com</p>
 
       <section class="card">
         <h2>Your Location</h2>
@@ -31,6 +31,7 @@
         <div id="locationData" class="data hidden">
           <div><strong>Latitude:</strong> <span id="lat">—</span></div>
           <div><strong>Longitude:</strong> <span id="lon">—</span></div>
+          <div><strong>Address:</strong> <span id="address">—</span></div>
           <div class="note">Accuracy: <span id="acc">—</span> meters</div>
         </div>
         <div id="locationError" class="error hidden"></div>
@@ -44,7 +45,7 @@
         </div>
       </section>
 
-      <section class="card">
+      <section class="card full-width">
         <h2>Map</h2>
         <div id="map" class="map"></div>
         <p class="note">
@@ -59,10 +60,14 @@
         </p>
       </section>
 
-      <section class="card">
+      <section class="card full-width">
         <h2>Current Weather</h2>
         <div id="weatherStatus" class="status">Waiting for your location…</div>
         <div id="weatherData" class="data hidden">
+          <div class="wx-icon-row">
+            <span id="wxIcon" class="wx-icon" aria-hidden="true">—</span>
+            <span id="wxIconLabel" class="wx-icon-label">Loading condition...</span>
+          </div>
           <div><strong>Condition:</strong> <span id="wxDesc">—</span></div>
           <div><strong>Temperature:</strong> <span id="wxTemp">—</span></div>
           <div><strong>Feels like:</strong> <span id="wxFeels">—</span></div>
@@ -71,6 +76,24 @@
           <div class="note"><span id="wxUpdated">—</span></div>
         </div>
         <div id="weatherError" class="error hidden"></div>
+      </section>
+
+      <section class="card full-width">
+        <h2>7-Day Wind Gust Forecast</h2>
+        <div id="forecastStatus" class="status">Waiting for weather data…</div>
+        <div id="forecastData" class="data hidden">
+          <table id="forecastTable" class="forecast-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Max Gust (km/h)</th>
+                <th>Direction</th>
+              </tr>
+            </thead>
+            <tbody id="forecastRows"></tbody>
+          </table>
+        </div>
+        <div id="forecastError" class="error hidden"></div>
       </section>
 
       <footer>
