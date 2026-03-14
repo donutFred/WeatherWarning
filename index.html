@@ -23,26 +23,56 @@
   <body>
     <main class="container">
       <h1>Weather Warning</h1>
+      <p class="subtle"><strong>Advanced wind and weather warnings.</strong></p>
       <p class="subtle">
-        Advanced wind and weather warnings.
-        <br>
-        (c) 2026 Steven Amor. steveamor12@gmail.com
+        Customised alerts for your location and unique situation.
       </p>
 
-      <section class="card location-map-row">
-        <div class="location-pane">
-          <h2>Your Location</h2>
-          <div id="locationStatus" class="status">Requesting permission…</div>
+      <section class="card grid-2x2">
+        <div class="pane time-pane">
+          <h2>Your Current Time</h2>
+          <div class="time">
+            <div id="clock" class="clock">—:—</div>
+            <div id="tz" class="tz">Detecting time zone…</div>
+          </div>
+          <div id="updatedInfo" class="note">Updated: —</div>
+
+          <div id="locationStatus" class="status"></div>
           <div id="locationData" class="data hidden">
             <div><strong>Latitude:</strong> <span id="lat">—</span></div>
             <div><strong>Longitude:</strong> <span id="lon">—</span></div>
             <div><strong>Address:</strong> <span id="address">—</span></div>
-            <div class="note">Accuracy: <span id="acc">—</span> meters</div>
           </div>
           <div id="locationError" class="error hidden"></div>
         </div>
 
-        <div class="map-pane">
+        <div class="pane weather-pane">
+          <h2>Current Weather</h2>
+          <div id="weatherStatus" class="status">
+            Waiting for your location…
+          </div>
+          <div id="weatherData" class="data hidden">
+            <div class="wx-icon-row">
+              <span id="wxIcon" class="wx-icon" aria-hidden="true">—</span>
+              <span id="wxIconLabel" class="wx-icon-label"
+                >Loading condition...</span
+              >
+            </div>
+            <div><strong>Condition:</strong> <span id="wxDesc">—</span></div>
+            <div><strong>Temperature:</strong> <span id="wxTemp">—</span></div>
+            <div><strong>Feels like:</strong> <span id="wxFeels">—</span></div>
+            <div><strong>Wind:</strong> <span id="wxWind">—</span></div>
+            <div><strong>Humidity:</strong> <span id="wxHum">—</span></div>
+          </div>
+          <div id="weatherError" class="error hidden"></div>
+        </div>
+
+        <div class="pane lookahead-pane">
+          <h2>Lookahead Summary</h2>
+          <div id="lookaheadSummary" class="data note">No concern</div>
+        </div>
+
+        <div class="pane map-pane">
           <h2>Map</h2>
           <div id="map" class="map"></div>
           <p class="note">
@@ -58,73 +88,91 @@
         </div>
       </section>
 
-      <section class="card time-weather-row">
-        <div class="time-pane">
-          <h2>Your Current Time</h2>
-          <div class="time">
-            <div id="clock" class="clock">—:—:—</div>
-            <div id="tz" class="tz">Detecting time zone…</div>
-          </div>
-        </div>
-
-        <div class="weather-pane">
-          <h2>Current Weather</h2>
-          <div id="weatherStatus" class="status">Waiting for your location…</div>
-          <div id="weatherData" class="data hidden">
-            <div class="wx-icon-row">
-              <span id="wxIcon" class="wx-icon" aria-hidden="true">—</span>
-              <span id="wxIconLabel" class="wx-icon-label">Loading condition...</span>
-            </div>
-            <div><strong>Condition:</strong> <span id="wxDesc">—</span></div>
-            <div><strong>Temperature:</strong> <span id="wxTemp">—</span></div>
-            <div><strong>Feels like:</strong> <span id="wxFeels">—</span></div>
-            <div><strong>Wind:</strong> <span id="wxWind">—</span></div>
-            <div><strong>Humidity:</strong> <span id="wxHum">—</span></div>
-            <div class="note"><span id="wxUpdated">—</span></div>
-          </div>
-          <div id="weatherError" class="error hidden"></div>
-        </div>
-      </section>
-
       <section class="card full-width">
-        <h2>Current Weather</h2>
-        <div id="weatherStatus" class="status">Waiting for your location…</div>
-        <div id="weatherData" class="data hidden">
-          <div class="wx-icon-row">
-            <span id="wxIcon" class="wx-icon" aria-hidden="true">—</span>
-            <span id="wxIconLabel" class="wx-icon-label"
-              >Loading condition...</span
-            >
-          </div>
-          <div><strong>Condition:</strong> <span id="wxDesc">—</span></div>
-          <div><strong>Temperature:</strong> <span id="wxTemp">—</span></div>
-          <div><strong>Feels like:</strong> <span id="wxFeels">—</span></div>
-          <div><strong>Wind:</strong> <span id="wxWind">—</span></div>
-          <div><strong>Humidity:</strong> <span id="wxHum">—</span></div>
-          <div class="note"><span id="wxUpdated">—</span></div>
+        <h2 id="forecast24Heading">Forecast: Next 24 hours</h2>
+        <div id="forecastStatus" class="status" style="display: none">
+          &nbsp;
         </div>
-        <div id="weatherError" class="error hidden"></div>
-      </section>
-
-      <section class="card full-width">
-        <h2>Forecast: next 24h hourly + 6h steps next 6 days</h2>
-        <div id="forecastStatus" class="status">Waiting for weather data…</div>
         <div id="forecastData" class="data hidden">
-          <table id="forecastTable" class="forecast-table">
+          <table id="forecastTable24" class="forecast-table">
+            <thead>
+              <tr id="forecast24HeaderRow">
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="forecast24Body"></tbody>
+          </table>
+
+          <h3 id="forecastSummaryHeading">Forecast: 7 day lookahead</h3>
+          <div class="note">
+            morning: 06-11, daytime: 12-17, evening: 18-23, night: 00-05
+          </div>
+          <table id="forecastTableSummary" class="forecast-table">
             <thead>
               <tr>
-                <th>Date / Time</th>
-                <th>Cond</th>
-                <th>Temp</th>
+                <th>Period</th>
+                <th>Condition</th>
+                <th>Temp (min/max)</th>
                 <th>Max Gust</th>
-                <th>Gust</th>
                 <th>Wind</th>
               </tr>
             </thead>
-            <tbody id="forecastRows"></tbody>
+            <tbody id="forecastRowsSummary"></tbody>
           </table>
         </div>
         <div id="forecastError" class="error hidden"></div>
+      </section>
+
+      <section class="card full-width" id="settingsSection">
+        <h2>Configurable Alert Settings</h2>
+        <div class="settings-group">
+          <h3>Wind thresholds</h3>
+          <p class="note">
+            Set thresholds for gust color alerts. Alarm is more severe than
+            caution.
+          </p>
+          <div class="settings-grid">
+            <label
+              >Max Wind Gust Alarm (km/h)
+              <input id="maxWindGustAlarm" type="number" min="0" value="50" />
+            </label>
+            <label
+              >Max Wind Gust Caution (km/h)
+              <input id="maxWindGustCaution" type="number" min="0" value="30" />
+            </label>
+          </div>
+        </div>
+        <div class="settings-group">
+          <h3>Temperature thresholds</h3>
+          <p class="note">
+            Caution is warning-level, alarm is critical. Min should be below
+            caution; max should be above caution.
+          </p>
+          <div class="settings-grid">
+            <label
+              >Min Temperature Alarm (°C)
+              <input id="minTempAlarm" type="number" value="0" />
+            </label>
+            <label
+              >Min Temperature Caution (°C)
+              <input id="minTempCaution" type="number" value="10" />
+            </label>
+            <label
+              >Max Temperature Alarm (°C)
+              <input id="maxTempAlarm" type="number" value="40" />
+            </label>
+            <label
+              >Max Temperature Caution (°C)
+              <input id="maxTempCaution" type="number" value="30" />
+            </label>
+          </div>
+        </div>
+        <div class="settings-actions">
+          <button id="saveSettingsButton" type="button">Save settings</button>
+          <span id="settingsSavedMessage" class="note" style="display: none"
+            >Settings saved.</span
+          >
+        </div>
       </section>
 
       <footer>
@@ -132,11 +180,11 @@
           We don’t send your location anywhere. It stays in your browser.
         </p>
         <p class="note">
-          Data sources: OpenStreetMap/Nominatim (reverse geocoding), Open-Meteo (current/hourly forecast and wind gust data).
+          Data sources: OpenStreetMap/Nominatim (reverse geocoding), Open-Meteo
+          (current/hourly forecast and wind gust data).
         </p>
-        <p class="note">
-          Map tiles © OpenStreetMap contributors.
-        </p>
+        <p class="note">Map tiles © OpenStreetMap contributors.</p>
+        <p class="note">Any feedback encouraged to steveamor12@gmail.com</p>
       </footer>
     </main>
 
