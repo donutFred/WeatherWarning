@@ -485,11 +485,23 @@ function initSettingsListeners() {
       }
 
       const candidate = {
-        maxWindGustAlarm: getInputNumber("maxWindGustAlarm", settings.maxWindGustAlarm),
-        maxWindGustCaution: getInputNumber("maxWindGustCaution", settings.maxWindGustCaution),
+        maxWindGustAlarm: getInputNumber(
+          "maxWindGustAlarm",
+          settings.maxWindGustAlarm,
+        ),
+        maxWindGustCaution: getInputNumber(
+          "maxWindGustCaution",
+          settings.maxWindGustCaution,
+        ),
         minTempAlarm: getInputNumber("minTempAlarm", settings.minTempAlarm),
-        minTempCaution: getInputNumber("minTempCaution", settings.minTempCaution),
-        maxTempCaution: getInputNumber("maxTempCaution", settings.maxTempCaution),
+        minTempCaution: getInputNumber(
+          "minTempCaution",
+          settings.minTempCaution,
+        ),
+        maxTempCaution: getInputNumber(
+          "maxTempCaution",
+          settings.maxTempCaution,
+        ),
         maxTempAlarm: getInputNumber("maxTempAlarm", settings.maxTempAlarm),
       };
 
@@ -1061,22 +1073,43 @@ function updateLookaheadSummary(segments) {
       const entries = [];
       if (segment.maxGust !== undefined) {
         if (segment.maxGust >= settings.maxWindGustAlarm) {
-          entries.push({severity: 4, text: `Gust ALARM ${Math.round(segment.maxGust)} km/h`});
+          entries.push({
+            severity: 4,
+            text: `Gust ALARM ${Math.round(segment.maxGust)} km/h`,
+          });
         } else if (segment.maxGust >= settings.maxWindGustCaution) {
-          entries.push({severity: 3, text: `Gust WARNING ${Math.round(segment.maxGust)} km/h`});
+          entries.push({
+            severity: 3,
+            text: `Gust WARNING ${Math.round(segment.maxGust)} km/h`,
+          });
         }
       }
       if (segment.minTemp !== undefined && segment.maxTemp !== undefined) {
-        if (segment.minTemp <= settings.minTempAlarm || segment.maxTemp >= settings.maxTempAlarm) {
-          entries.push({severity: 4, text: `Temp ALARM ${Math.round(segment.minTemp)}-${Math.round(segment.maxTemp)}°C`});
-        } else if (segment.minTemp <= settings.minTempCaution || segment.maxTemp >= settings.maxTempCaution) {
-          entries.push({severity: 3, text: `Temp WARNING ${Math.round(segment.minTemp)}-${Math.round(segment.maxTemp)}°C`});
+        if (
+          segment.minTemp <= settings.minTempAlarm ||
+          segment.maxTemp >= settings.maxTempAlarm
+        ) {
+          entries.push({
+            severity: 4,
+            text: `Temp ALARM ${Math.round(segment.minTemp)}-${Math.round(segment.maxTemp)}°C`,
+          });
+        } else if (
+          segment.minTemp <= settings.minTempCaution ||
+          segment.maxTemp >= settings.maxTempCaution
+        ) {
+          entries.push({
+            severity: 3,
+            text: `Temp WARNING ${Math.round(segment.minTemp)}-${Math.round(segment.maxTemp)}°C`,
+          });
         }
       }
       if (segment.code !== undefined && getWeatherSeverity(segment.code) >= 6) {
-        entries.push({severity: getWeatherSeverity(segment.code), text: `${WMO_DESCRIPTIONS[segment.code] || 'Weather alert'}`});
+        entries.push({
+          severity: getWeatherSeverity(segment.code),
+          text: `${WMO_DESCRIPTIONS[segment.code] || "Weather alert"}`,
+        });
       }
-      return entries.map((entry) => ({...entry, when: segment.label}));
+      return entries.map((entry) => ({ ...entry, when: segment.label }));
     })
     .sort((a, b) => b.severity - a.severity);
 
@@ -1100,23 +1133,34 @@ function updateLookaheadSummary(segments) {
   };
 
   const firstAlertSegment = segments.find((segment) => {
-    const isGustAlert = segment.maxGust !== undefined && segment.maxGust >= settings.maxWindGustCaution;
+    const isGustAlert =
+      segment.maxGust !== undefined &&
+      segment.maxGust >= settings.maxWindGustCaution;
     const isTempAlert =
-      segment.minTemp !== undefined && segment.minTemp <= settings.minTempCaution ||
-      segment.maxTemp !== undefined && segment.maxTemp >= settings.maxTempCaution;
-    const isWeatherAlert = segment.code !== undefined && getWeatherSeverity(segment.code) > 3;
+      (segment.minTemp !== undefined &&
+        segment.minTemp <= settings.minTempCaution) ||
+      (segment.maxTemp !== undefined &&
+        segment.maxTemp >= settings.maxTempCaution);
+    const isWeatherAlert =
+      segment.code !== undefined && getWeatherSeverity(segment.code) > 3;
     return isGustAlert || isTempAlert || isWeatherAlert;
   });
 
   const formattedHeadline = (() => {
     if (!firstAlertSegment) return "No immediate alert period identified.";
 
-    const part = firstAlertSegment.timeClass.replace('time-', '').replace('-', ' ').toUpperCase();
-    const day = getDayName(firstAlertSegment.date, 'long').toUpperCase();
+    const part = firstAlertSegment.timeClass
+      .replace("time-", "")
+      .replace("-", " ")
+      .toUpperCase();
+    const day = getDayName(firstAlertSegment.date, "long").toUpperCase();
 
     let text = `${part} (${day}) WILL BE ${tempDescriptor(firstAlertSegment.minTemp ?? 0, firstAlertSegment.maxTemp ?? 0)}`;
 
-    const wmo = firstAlertSegment.code !== undefined ? WMO_DESCRIPTIONS[firstAlertSegment.code] : null;
+    const wmo =
+      firstAlertSegment.code !== undefined
+        ? WMO_DESCRIPTIONS[firstAlertSegment.code]
+        : null;
     if (wmo) {
       const weatherText = wmo.toUpperCase();
       text += ` AND ${weatherText}`;
@@ -1131,24 +1175,34 @@ function updateLookaheadSummary(segments) {
 
   const gustAlerts = segments.map((segment) => ({
     when: segment.label,
-    day: getDayName(segment.date, 'long'),
-    period: segment.timeClass.replace('time-', '').toUpperCase(),
+    day: getDayName(segment.date, "long"),
+    period: segment.timeClass.replace("time-", "").toUpperCase(),
     status: gustStatusOf(segment.maxGust ?? 0),
     value: Math.round(segment.maxGust ?? 0),
   }));
 
-  const cautionStart = gustAlerts.find((s) => s.status === 'CAUTION');
-  const alarmStart = gustAlerts.find((s) => s.status === 'ALARM');
-  const downToNormal = gustAlerts.reverse().find((s) => s.status === 'NORMAL');
+  const cautionStart = gustAlerts.find((s) => s.status === "CAUTION");
+  const alarmStart = gustAlerts.find((s) => s.status === "ALARM");
+  const downToNormal = gustAlerts.reverse().find((s) => s.status === "NORMAL");
 
   const tempAlertSentences = [];
-  const firstCold = segments.find((s) => s.minTemp !== undefined && s.minTemp <= settings.minTempAlarm);
-  const firstCool = segments.find((s) => s.minTemp !== undefined && s.minTemp <= settings.minTempCaution);
-  const firstHot = segments.find((s) => s.maxTemp !== undefined && s.maxTemp >= settings.maxTempCaution);
-  const firstVeryHot = segments.find((s) => s.maxTemp !== undefined && s.maxTemp >= settings.maxTempAlarm);
+  const firstCold = segments.find(
+    (s) => s.minTemp !== undefined && s.minTemp <= settings.minTempAlarm,
+  );
+  const firstCool = segments.find(
+    (s) => s.minTemp !== undefined && s.minTemp <= settings.minTempCaution,
+  );
+  const firstHot = segments.find(
+    (s) => s.maxTemp !== undefined && s.maxTemp >= settings.maxTempCaution,
+  );
+  const firstVeryHot = segments.find(
+    (s) => s.maxTemp !== undefined && s.maxTemp >= settings.maxTempAlarm,
+  );
 
   if (firstCold) {
-    tempAlertSentences.push(`${getDayName(firstCold.date, 'long')} will be a COLD morning`);
+    tempAlertSentences.push(
+      `${getDayName(firstCold.date, "long")} will be a COLD morning`,
+    );
   }
   if (firstCool && firstCool !== firstCold) {
     tempAlertSentences.push(`and COOL evening into night`);
@@ -1161,35 +1215,43 @@ function updateLookaheadSummary(segments) {
 
   const gustSentence = [];
   if (cautionStart) {
-    gustSentence.push(`WIND GUST WARNING: CAUTION level begins ${cautionStart.period.toLowerCase()} ${cautionStart.day}`);
+    gustSentence.push(
+      `WIND GUST WARNING: CAUTION level begins ${cautionStart.period.toLowerCase()} ${cautionStart.day}`,
+    );
   }
   if (alarmStart) {
-    gustSentence.push(`reaching ALARM by ${alarmStart.period.toLowerCase()} (${alarmStart.value} km/h)`);
+    gustSentence.push(
+      `reaching ALARM by ${alarmStart.period.toLowerCase()} (${alarmStart.value} km/h)`,
+    );
   }
   if (downToNormal) {
-    gustSentence.push(`reducing to CAUTION/normal by ${downToNormal.period.toLowerCase()} ${downToNormal.day}`);
+    gustSentence.push(
+      `reducing to CAUTION/normal by ${downToNormal.period.toLowerCase()} ${downToNormal.day}`,
+    );
   }
 
   if (!hasConcern) {
     container.innerHTML = `
       <div><strong>${formattedHeadline}</strong></div>
       <div>All clear for the next 24 hours.</div>
-      <div>${gustSentence.join(', ')}.</div>
-      <div>${tempAlertSentences.join('; ')}.</div>
+      <div>${gustSentence.join(", ")}.</div>
+      <div>${tempAlertSentences.join("; ")}.</div>
     `;
     return;
   }
 
   const lines = [];
   lines.push(`<div><strong>${formattedHeadline}</strong></div>`);
-  lines.push(`<div>${gustSentence.join(', ')}.</div>`);
-  lines.push(`<div>${tempAlertSentences.join('; ')}.</div>`);
+  lines.push(`<div>${gustSentence.join(", ")}.</div>`);
+  lines.push(`<div>${tempAlertSentences.join("; ")}.</div>`);
   lines.push(`<div>${conditions[0].label}</div>`);
-  lines.push(`<div>${conditions[1]?.label || ''}</div>`);
+  lines.push(`<div>${conditions[1]?.label || ""}</div>`);
 
   if (conditions.length > 2) {
     lines.push(`<div><strong>Other conditions</strong></div>`);
-    conditions.slice(2).forEach((item) => lines.push(`<div>${item.label}</div>`));
+    conditions
+      .slice(2)
+      .forEach((item) => lines.push(`<div>${item.label}</div>`));
   }
 
   // Chronological alert timeline from segments
@@ -1210,13 +1272,20 @@ function updateLookaheadSummary(segments) {
       }
 
       if (segMinTemp !== undefined && segMaxTemp !== undefined) {
-        if (segMinTemp <= settings.minTempAlarm || segMaxTemp >= settings.maxTempAlarm) {
-          entries.push(`Temp ALARM ${Math.round(segMinTemp)}-${Math.round(segMaxTemp)}°C`);
+        if (
+          segMinTemp <= settings.minTempAlarm ||
+          segMaxTemp >= settings.maxTempAlarm
+        ) {
+          entries.push(
+            `Temp ALARM ${Math.round(segMinTemp)}-${Math.round(segMaxTemp)}°C`,
+          );
         } else if (
           segMinTemp <= settings.minTempCaution ||
           segMaxTemp >= settings.maxTempCaution
         ) {
-          entries.push(`Temp WARNING ${Math.round(segMinTemp)}-${Math.round(segMaxTemp)}°C`);
+          entries.push(
+            `Temp WARNING ${Math.round(segMinTemp)}-${Math.round(segMaxTemp)}°C`,
+          );
         }
       }
 
