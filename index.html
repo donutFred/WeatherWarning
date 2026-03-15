@@ -3,7 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Weather Warning - Advanced wind and weather warnings for your location</title>
+    <title>
+      Weather Warning - Advanced wind and weather warnings for your location
+    </title>
     <meta
       name="description"
       content="Shows your approximate location, current time, a map and the local weather."
@@ -30,9 +32,7 @@
 
       <section class="card full-width" id="lookaheadTop">
         <h2>Lookahead Summary</h2>
-        <div id="lookaheadSummary" class="data note">
-          No concern
-        </div>
+        <div id="lookaheadSummary" class="data note">No concern</div>
         <p class="note">
           This summary gives the key alerts and actions for the next 7 days.
           Please review forecast details below and plan accordingly.
@@ -51,34 +51,44 @@
 
             <div id="locationStatus" class="status"></div>
             <div id="locationData" class="data hidden">
-              <div><strong>Lat/Lon:</strong> <span id="lat">—</span>, <span id="lon">—</span></div>
+              <div>
+                <strong>Lat/Lon:</strong> <span id="lat">—</span>,
+                <span id="lon">—</span>
+              </div>
               <div><strong>Address:</strong> <span id="address">—</span></div>
             </div>
             <div id="locationError" class="error hidden"></div>
           </div>
 
           <div class="pane weather-pane">
-          <h2>Current Weather</h2>
-          <div id="weatherStatus" class="status">
-            Waiting for your location…
-          </div>
-          <div id="weatherData" class="data hidden">
-            <div class="weather-current-grid">
-              <div class="wx-icon-pane">
-                <span id="wxIcon" class="wx-icon" aria-hidden="true">—</span>
-                <div id="wxIconLabel" class="wx-icon-label">Loading condition...</div>
-              </div>
-              <div class="weather-current-details">
-                <div><strong>Condition:</strong> <span id="wxDesc">—</span></div>
-                <div><strong>Temperature:</strong> <span id="wxTemp">—</span></div>
-                <div><strong>Wind:</strong> <span id="wxWind">—</span></div>
-                <div><strong>Humidity:</strong> <span id="wxHum">—</span></div>
+            <h2>Current Weather</h2>
+            <div id="weatherStatus" class="status">
+              Waiting for your location…
+            </div>
+            <div id="weatherData" class="data hidden">
+              <div class="weather-current-grid">
+                <div class="wx-icon-pane">
+                  <span id="wxIcon" class="wx-icon" aria-hidden="true">—</span>
+                  <div id="wxIconLabel" class="wx-icon-label">
+                    Loading condition...
+                  </div>
+                </div>
+                <div class="weather-current-details">
+                  <div>
+                    <strong>Condition:</strong> <span id="wxDesc">—</span>
+                  </div>
+                  <div>
+                    <strong>Temperature:</strong> <span id="wxTemp">—</span>
+                  </div>
+                  <div><strong>Wind:</strong> <span id="wxWind">—</span></div>
+                  <div>
+                    <strong>Humidity:</strong> <span id="wxHum">—</span>
+                  </div>
+                </div>
               </div>
             </div>
+            <div id="weatherError" class="error hidden"></div>
           </div>
-          <div id="weatherError" class="error hidden"></div>
-        </div>
-
         </div>
 
         <div class="pane map-pane">
