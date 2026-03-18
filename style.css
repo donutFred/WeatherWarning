@@ -733,6 +733,11 @@ footer .final-note {
   color: #fff;
 }
 
+#forecastTable24 tbody td.time-day {
+  background-color: rgba(70, 130, 180, 0.7);
+  color: #fff;
+}
+
 #forecastTable24 thead th.time-twilight-morning {
   background-image: linear-gradient(
     to right,
@@ -740,6 +745,15 @@ footer .final-note {
     rgba(70, 130, 180, 0.7)
   );
   color: #111;
+}
+
+#forecastTable24 tbody td.time-twilight-morning {
+  background-image: linear-gradient(
+    to right,
+    rgba(21, 26, 43, 0.9),
+    rgba(70, 130, 180, 0.7)
+  );
+  color: #fff;
 }
 
 #forecastTable24 thead th.time-twilight-evening {
@@ -751,7 +765,21 @@ footer .final-note {
   color: #111;
 }
 
+#forecastTable24 tbody td.time-twilight-evening {
+  background-image: linear-gradient(
+    to right,
+    rgba(70, 130, 180, 0.7),
+    rgba(21, 26, 43, 0.9)
+  );
+  color: #fff;
+}
+
 #forecastTable24 thead th.time-night {
+  background-color: rgba(21, 26, 43, 0.9);
+  color: #fff;
+}
+
+#forecastTable24 tbody td.time-night {
   background-color: rgba(21, 26, 43, 0.9);
   color: #fff;
 }
@@ -845,7 +873,14 @@ footer .final-note {
 }
 
 #forecastTableSummary td:last-child {
-  min-width: 88px;
+  min-width: 132px;
+  width: 132px;
+  white-space: nowrap;
+}
+
+#forecastTableSummary th:last-child {
+  min-width: 132px;
+  width: 132px;
   white-space: nowrap;
 }
 
@@ -1188,13 +1223,19 @@ footer {
 
 footer .small-text {
   margin: 4px auto;
-  max-width: 880px;
+  max-width: none;
+  width: 100%;
 }
 
 footer .final-note {
   margin: 10px auto 0;
   font-weight: 600;
   color: var(--fg);
+  width: 100%;
+}
+
+#releaseNote {
+  width: 100%;
 }
 
 /* Map */
@@ -1498,6 +1539,34 @@ footer .final-note {
   line-height: 1;
 }
 
+.summary-risk-cell .risk-icons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  min-height: 21px;
+}
+
+.summary-risk-cell .risk-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.summary-risk-cell .risk-icon.risk-caution {
+  background: rgba(255, 148, 28, 0.33);
+}
+
+.summary-risk-cell .risk-icon.risk-alarm {
+  background: rgba(235, 48, 48, 0.4);
+}
+
 #forecast24SymbolRow .risk-icon.risk-caution {
   background: rgba(255, 148, 28, 0.33);
 }
@@ -1530,6 +1599,24 @@ footer .final-note {
   height: 1.1em;
   vertical-align: middle;
   display: inline-block;
+}
+
+.fog-svg-icon {
+  width: 1em;
+  height: 0.8em;
+  vertical-align: middle;
+  display: inline-block;
+}
+
+#forecastTable24 .condition-icon .fog-svg-icon,
+#forecastTableSummary .condition-icon .fog-svg-icon {
+  width: 1.05em;
+  height: 0.84em;
+}
+
+.wx-icon .fog-svg-icon {
+  width: 0.95em;
+  height: 0.75em;
 }
 
 .summary-action-required {
@@ -1587,6 +1674,30 @@ footer .final-note {
   font-size: 0.72rem;
 }
 
+#forecastTable24 tbody td.solar-cell.time-day {
+  background-color: rgba(70, 130, 180, 0.7) !important;
+}
+
+#forecastTable24 tbody td.solar-cell.time-twilight-morning {
+  background-image: linear-gradient(
+    to right,
+    rgba(21, 26, 43, 0.9),
+    rgba(70, 130, 180, 0.7)
+  ) !important;
+}
+
+#forecastTable24 tbody td.solar-cell.time-twilight-evening {
+  background-image: linear-gradient(
+    to right,
+    rgba(70, 130, 180, 0.7),
+    rgba(21, 26, 43, 0.9)
+  ) !important;
+}
+
+#forecastTable24 tbody td.solar-cell.time-night {
+  background-color: rgba(21, 26, 43, 0.9) !important;
+}
+
 #forecastTable24 td.solar-cell .solar-label {
   font-size: 0.72rem;
   line-height: 1.2;
@@ -1595,6 +1706,26 @@ footer .final-note {
 #forecastTable24 td.solar-cell .solar-value {
   font-size: 0.68rem;
   line-height: 1.2;
+}
+
+#forecastTable24 td.solar-cell.solar-poor {
+  color: #5c7a9a !important;
+}
+
+#forecastTable24 td.solar-cell.solar-fair {
+  color: #7a3a00 !important;
+}
+
+#forecastTable24 td.solar-cell.solar-good {
+  color: #c75a00 !important;
+}
+
+#forecastTable24 td.solar-cell.solar-very-good {
+  color: #ff8c1c !important;
+}
+
+#forecastTable24 td.solar-cell.solar-excellent {
+  color: #fffaf2 !important;
 }
 
 #forecastTable24 .wind-speed-line,

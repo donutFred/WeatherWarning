@@ -488,8 +488,6 @@ function initSettingsListeners() {
     const el = document.getElementById(id);
     if (!el) return;
 
-    el.dataset.prevValue = el.value;
-
     el.addEventListener("input", () => {
       const value = Number(el.value);
       if (Number.isNaN(value)) {
@@ -522,17 +520,12 @@ function initSettingsListeners() {
 
       const errors = validateThresholdValues(candidate);
       if (errors.length) {
-        el.value = el.dataset.prevValue ?? el.value;
-        const reverted = readSettingsFromUI();
-        syncDisplayValues(reverted);
-        updateWindGustBar(reverted);
-        updateTempScaleBar(reverted);
         setThresholdMessage(errors[0]);
+        syncDisplayValues(candidate);
         return;
       }
 
       setThresholdMessage("", false);
-      el.dataset.prevValue = el.value;
       syncDisplayValues(candidate);
       updateWindGustBar(candidate);
       updateTempScaleBar(candidate);
@@ -642,7 +635,7 @@ function initDragHandles() {
   });
 }
 
-function initMapIfNeeded(lat, lon, zoom = 8) {
+function initMapIfNeeded(lat, lon, zoom = 4) {
   if (!map) {
     map = L.map("map").setView([lat, lon], zoom);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -710,12 +703,51 @@ function showPosition(pos) {
 applySettingsToUI();
 initSettingsListeners();
 
-// release date (adjust as needed)
-const RELEASE_DATE = "2026-03-15";
-const releaseDateEl = document.getElementById("releaseDate");
-if (releaseDateEl) {
-  releaseDateEl.textContent = RELEASE_DATE;
+function renderDefaultSettingsText() {
+  const el = document.getElementById("defaultSettingsDisplay");
+  if (!el) return;
+  el.textContent =
+    `Default thresholds: wind caution ${DEFAULT_SETTINGS.maxWindGustCaution} km/h, wind alarm ${DEFAULT_SETTINGS.maxWindGustAlarm} km/h, min temp alarm ${DEFAULT_SETTINGS.minTempAlarm}°C, min temp caution ${DEFAULT_SETTINGS.minTempCaution}°C, max temp caution ${DEFAULT_SETTINGS.maxTempCaution}°C, max temp alarm ${DEFAULT_SETTINGS.maxTempAlarm}°C.`;
 }
+renderDefaultSettingsText();
+
+async function updateLatestReleaseDate() {
+  const releaseDateEl = document.getElementById("releaseDate");
+  if (!releaseDateEl) return;
+
+  const fallback = new Date().toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+
+  try {
+    const response = await fetch(
+      "https://api.github.com/repos/DMT-Dev1/WeatherWarning/commits?path=index.html&sha=main&per_page=1",
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const commits = await response.json();
+    const committedAt = commits?.[0]?.commit?.committer?.date;
+    if (!committedAt) {
+      releaseDateEl.textContent = fallback;
+      return;
+    }
+
+    releaseDateEl.textContent = new Date(committedAt).toLocaleDateString(
+      undefined,
+      {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      },
+    );
+  } catch (e) {
+    console.warn("Release date fetch failed", e);
+    releaseDateEl.textContent = fallback;
+  }
+}
+updateLatestReleaseDate();
 
 function showError(err) {
   clearLocationWaitTimer();
@@ -889,13 +921,15 @@ const WMO_DESCRIPTIONS = {
   99: "Thunderstorm with heavy hail",
 };
 
+const FOG_ICON_SVG = `<svg class="fog-svg-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="6"><path d="M26 30c0-9 7-16 16-16 6 0 11 3 14 8 2-2 5-3 9-3 7 0 13 6 13 13"/><path d="M10 44h100"/><path d="M18 56h72"/><path d="M50 68h62"/></svg>`;
+
 const WMO_ICONS = {
   0: "☀️",
   1: "🌤",
   2: "⛅",
   3: "☁️",
-  45: "🌁",
-  48: "🌁",
+  45: FOG_ICON_SVG,
+  48: FOG_ICON_SVG,
   51: "🌦",
   53: "🌦",
   55: "🌧",
@@ -922,6 +956,7 @@ const WMO_ICONS = {
 
 function getWeatherIcon(code, isDay) {
   const icon = WMO_ICONS[code] || "🌈";
+  if (code === 45 || code === 48) return icon;
   if (!isDay) {
     if (code === 0) return "🌙";
     if ([1, 2, 3, 45, 48].includes(code)) return "🌜";
@@ -929,11 +964,22 @@ function getWeatherIcon(code, isDay) {
   return icon;
 }
 
+function setWeatherIconById(id, iconMarkupOrText) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const value = iconMarkupOrText ?? "—";
+  if (typeof value === "string" && value.includes("<svg")) {
+    el.innerHTML = value;
+  } else {
+    el.textContent = value;
+  }
+}
+
 const WIND_ICON_SVG = `<svg class="wind-svg-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 70" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="7"><path d="M5 22 H52 Q68 22 68 12 Q68 2 58 2 Q48 2 48 12"/><path d="M5 35 H72 Q84 35 84 45 Q84 55 74 55 Q64 55 64 45"/><path d="M5 50 H46 Q58 50 58 60 Q58 68 50 68 Q42 68 42 60"/></svg>`;
 
 const SOLAR_RATINGS = [
   { label: "Low", className: "solar-poor" },
-  { label: "Fair", className: "solar-fair" },
+  { label: "Poor", className: "solar-fair" },
   { label: "Good", className: "solar-good" },
   { label: "Very good", className: "solar-very-good" },
   { label: "Excellent", className: "solar-excellent" },
@@ -1165,6 +1211,7 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
   const now = new Date();
   const ONE_DAY_MS = 24 * 60 * 60 * 1000;
   const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+  const isSummarySolarEligibleTimeClass = (timeClass) => timeClass === "time-day";
 
   const describeWhen = (date, fallbackBucketDate = date) => {
     const asDate = date instanceof Date ? date : new Date(date);
@@ -1234,6 +1281,7 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
   );
 
   const highestRadiationPoint = timeline.reduce((best, point) => {
+    if (!isSummarySolarEligibleTimeClass(point.timeClass)) return best;
     const value =
       point.maxRadiation !== undefined
         ? point.maxRadiation
@@ -1306,40 +1354,85 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
       (point.maxTemp ?? point.temp) >= settings.maxTempCaution,
   );
 
-  // =====================
-  // NEXT ACTION REQUIRED
-  // =====================
-
-  // Solar is "poor" if level < 2 (i.e. Low or Fair)
   const isSolarPoor = (radiation, timeClass) => {
-    if (!isSolarEligibleTimeClass(timeClass)) return false;
+    if (!isSummarySolarEligibleTimeClass(timeClass)) return false;
     if (radiation === undefined || radiation === null || radiation <= 0)
       return false;
     const rating = getSolarRatingFromRadiation(radiation, timeClass);
     if (!rating) return false;
-    // levels 0 (Low) and 1 (Fair) are below "Good"
     return (
       rating.className === "solar-poor" || rating.className === "solar-fair"
     );
   };
 
-  let nearestBreach = null;
+  const poorSolarDays = summaryRows
+    .map((entry) => {
+      const rating = getDailySolarRating(entry.totalRadiation);
+      return Boolean(
+        rating &&
+          (rating.className === "solar-poor" || rating.className === "solar-fair"),
+      );
+    })
+    .map((isPoor, idx, arr) => {
+      if (!isPoor) return false;
+      return Boolean(arr[idx - 1] || arr[idx + 1]);
+    });
+
+  const findNextWindBreach = () => {
+    for (const point of timeline) {
+      const pointDate =
+        point.date instanceof Date ? point.date : new Date(point.date);
+      const gust = point.gust ?? point.maxGust;
+      if (gust !== undefined && gust >= settings.maxWindGustAlarm) {
+        return { date: pointDate, type: "wind", level: "alarm" };
+      }
+      if (gust !== undefined && gust >= settings.maxWindGustCaution) {
+        return { date: pointDate, type: "wind", level: "caution" };
+      }
+    }
+
+    for (const entry of summaryRows) {
+      for (const [bucketName, period] of Object.entries(entry.periods)) {
+        if (
+          period.maxGust !== -Infinity &&
+          period.maxGust >= settings.maxWindGustAlarm
+        ) {
+          return {
+            date: entry.date,
+            type: "wind",
+            level: "alarm",
+            period: bucketName,
+            is7day: true,
+          };
+        }
+        if (
+          period.maxGust !== -Infinity &&
+          period.maxGust >= settings.maxWindGustCaution
+        ) {
+          return {
+            date: entry.date,
+            type: "wind",
+            level: "caution",
+            period: bucketName,
+            is7day: true,
+          };
+        }
+      }
+    }
+
+    return null;
+  };
+
+  let nearestBreach = findNextWindBreach();
   for (const point of timeline) {
     if (nearestBreach) break;
     const pointDate =
       point.date instanceof Date ? point.date : new Date(point.date);
-    const gust = point.gust ?? point.maxGust;
     const minT = point.temp ?? point.minTemp;
     const maxT = point.maxTemp ?? point.temp;
     const code = point.code;
-    const rad = point.radiation ?? point.maxRadiation;
-    const tc = point.timeClass;
 
-    if (gust !== undefined && gust >= settings.maxWindGustAlarm) {
-      nearestBreach = { date: pointDate, type: "wind", level: "alarm" };
-    } else if (gust !== undefined && gust >= settings.maxWindGustCaution) {
-      nearestBreach = { date: pointDate, type: "wind", level: "caution" };
-    } else if (minT !== undefined && minT <= settings.minTempAlarm) {
+    if (minT !== undefined && minT <= settings.minTempAlarm) {
       nearestBreach = { date: pointDate, type: "cold", level: "alarm" };
     } else if (minT !== undefined && minT <= settings.minTempCaution) {
       nearestBreach = { date: pointDate, type: "cold", level: "caution" };
@@ -1353,49 +1446,13 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
       getWeatherSeverity(code) >= 4
     ) {
       nearestBreach = { date: pointDate, type: "rain", level: "caution" };
-    } else if (isSolarPoor(rad, tc)) {
-      const rating = getSolarRatingFromRadiation(rad, tc);
-      nearestBreach = {
-        date: pointDate,
-        type: "solar",
-        level: "caution",
-        solarLabel: rating ? rating.label : "Low",
-      };
     }
   }
 
-  // If no breach in 24h, scan 7-day summaryRows for the next action
   if (!nearestBreach && summaryRows && summaryRows.length > 0) {
-    outer: for (const entry of summaryRows) {
+    outer: for (const [dayIndex, entry] of summaryRows.entries()) {
       for (const [bucketName, period] of Object.entries(entry.periods)) {
-        // skip night for solar checks
-        const bucketTimeClass =
-          bucketName === "night" ? "time-night" : "time-day";
         if (
-          period.maxGust !== -Infinity &&
-          period.maxGust >= settings.maxWindGustAlarm
-        ) {
-          nearestBreach = {
-            date: entry.date,
-            type: "wind",
-            level: "alarm",
-            period: bucketName,
-            is7day: true,
-          };
-          break outer;
-        } else if (
-          period.maxGust !== -Infinity &&
-          period.maxGust >= settings.maxWindGustCaution
-        ) {
-          nearestBreach = {
-            date: entry.date,
-            type: "wind",
-            level: "caution",
-            period: bucketName,
-            is7day: true,
-          };
-          break outer;
-        } else if (
           period.minTemp !== Infinity &&
           period.minTemp <= settings.minTempAlarm
         ) {
@@ -1443,89 +1500,80 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
             is7day: true,
           };
           break outer;
-        } else if (
-          bucketName !== "night" &&
-          period.maxRadiation !== -Infinity &&
-          period.maxRadiation > 0
-        ) {
-          const rating = getSolarRatingFromRadiation(
-            period.maxRadiation,
-            bucketTimeClass,
-          );
-          if (
-            rating &&
-            (rating.className === "solar-poor" ||
-              rating.className === "solar-fair")
-          ) {
-            nearestBreach = {
-              date: entry.date,
-              type: "solar",
-              level: "caution",
-              solarLabel: rating.label,
-              period: bucketName,
-              is7day: true,
-            };
-            break outer;
-          }
         }
+      }
+
+      if (nearestBreach) break;
+
+      const dailySolar = getDailySolarRating(entry.totalRadiation);
+      if (
+        poorSolarDays[dayIndex] &&
+        dailySolar &&
+        (dailySolar.className === "solar-poor" ||
+          dailySolar.className === "solar-fair")
+      ) {
+        nearestBreach = {
+          date: entry.date,
+          type: "solar",
+          level: "caution",
+          solarLabel: dailySolar.label,
+          is7day: true,
+        };
+        break;
       }
     }
   }
 
   const lines = [];
-
   if (nearestBreach) {
     const isAlarm = nearestBreach.level === "alarm";
     const msTill = nearestBreach.date - now;
     const isImminent = msTill < TWO_HOURS_MS;
-    const timeRef = describeWhen(nearestBreach.date);
+    const timeRef =
+      nearestBreach.is7day && nearestBreach.period
+        ? `${getDayName(nearestBreach.date, "short")} ${nearestBreach.period}`
+        : describeWhen(nearestBreach.date);
     let actionLine = "";
 
-    const periodSuffix =
-      nearestBreach.is7day && nearestBreach.period
-        ? ` (${nearestBreach.period})`
-        : "";
     switch (nearestBreach.type) {
       case "wind":
-        actionLine =
-          isAlarm && isImminent
-            ? `Take immediate action — bring in the awning and secure all outdoor equipment. Wind gusts at alarm level now!`
-            : isAlarm
-              ? `Bring in the awning and secure outdoor equipment before ${timeRef}${periodSuffix} when wind gusts are forecast to reach alarm level.`
-              : isImminent
-                ? `Consider securing the awning — wind caution gusts arriving soon.`
-                : `Consider bringing in the awning before ${timeRef}${periodSuffix} when caution-level wind gusts are expected.`;
+        actionLine = isAlarm
+          ? `Bring in the awning and secure outdoor equipment before ${timeRef} when wind gusts are forecast to reach alarm level.`
+          : `Consider bringing in the awning before ${timeRef} when caution-level wind gusts are expected.`;
+        if (isImminent) {
+          actionLine = isAlarm
+            ? "Take immediate action: bring in the awning and secure outdoor equipment now."
+            : "Consider securing the awning now as caution-level gusts are imminent.";
+        }
         break;
       case "cold":
-        actionLine =
-          isAlarm && isImminent
-            ? `Take immediate action — close up the windows and turn on the heater! Temperature at alarm level now!`
-            : isAlarm
-              ? `Close up the windows and turn on the heater before ${timeRef}${periodSuffix} — cold alarm expected.`
-              : isImminent
-                ? `Consider closing up and preparing heating — temperature dropping to caution level.`
-                : `Consider closing up and turning on heating before ${timeRef}${periodSuffix} when cold caution is expected.`;
+        actionLine = isAlarm
+          ? `Close up the windows and turn on the heater before ${timeRef} — cold alarm expected.`
+          : `Consider closing up and turning on heating before ${timeRef} when cold caution is expected.`;
+        if (isImminent) {
+          actionLine = isAlarm
+            ? "Take immediate action: close up windows and turn on heating now."
+            : "Consider preparing heating now as cold caution is imminent.";
+        }
         break;
       case "heat":
-        actionLine =
-          isAlarm && isImminent
-            ? `Take immediate action — maximise ventilation and prepare cooling. Heat at alarm level now!`
-            : isAlarm
-              ? `Prepare cooling and maximise ventilation before ${timeRef}${periodSuffix} — heat alarm expected.`
-              : isImminent
-                ? `Consider opening up for ventilation — temperature reaching caution level.`
-                : `Consider opening up for ventilation before ${timeRef}${periodSuffix} when heat caution is expected.`;
+        actionLine = isAlarm
+          ? `Prepare cooling and maximise ventilation before ${timeRef} — heat alarm expected.`
+          : `Consider opening up for ventilation before ${timeRef} when heat caution is expected.`;
+        if (isImminent) {
+          actionLine = isAlarm
+            ? "Take immediate action: maximise ventilation and prepare cooling now."
+            : "Consider increasing ventilation now as heat caution is imminent.";
+        }
         break;
       case "rain":
         actionLine = isImminent
-          ? `Close windows and take action to protect against rain — wet weather arriving now.`
-          : `Close windows and prepare for rain expected from ${timeRef}${periodSuffix}.`;
+          ? "Close windows and take action to protect against rain now."
+          : `Close windows and prepare for rain expected from ${timeRef}.`;
         break;
       case "solar": {
         const solarLbl = nearestBreach.solarLabel || "Low";
-        actionLine = isImminent
-          ? `Solar generation is ${solarLbl.toLowerCase()} — limited charging expected now.`
-          : `Solar generation is forecast to be ${solarLbl.toLowerCase()} from ${timeRef}${periodSuffix} — consider managing battery usage.`;
+        actionLine = `Solar generation is forecast to be ${solarLbl.toLowerCase()} from ${timeRef}.`;
         break;
       }
     }
@@ -1539,15 +1587,11 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
     );
   }
 
-  // ===============
-  // NEXT 24 HOURS
-  // ===============
   lines.push(
-    `<div><strong>Next 24 hours (${describeWhen(firstPoint.date ?? firstPoint)} to ${describeWhen(lastPoint.date ?? lastPoint)}):</strong></div>`,
+    `<div><strong>Next 24 hours:</strong></div>`,
   );
 
   const riskSentences = [];
-
   if (windAlarmIdx >= 0 && windCautionIdx >= 0) {
     let sentence = `Wind gusts are likely to reach caution level from ${describeWhen(timeline[windCautionIdx].date ?? timeline[windCautionIdx])} and then alarm level at ${describeWhen(timeline[windAlarmIdx].date ?? timeline[windAlarmIdx])}.`;
     if (alarmDropIdx >= 0) {
@@ -1591,19 +1635,20 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
     );
   }
 
-  if (
-    highestRadiationPoint &&
-    highestRadiationPoint.value !== undefined &&
-    highestRadiationPoint.value > 0
-  ) {
+  if (highestRadiationPoint && highestRadiationPoint.value !== undefined) {
     const solarRating = getSolarRatingFromRadiation(
       highestRadiationPoint.value,
       highestRadiationPoint.point.timeClass,
     );
-    const solarText = solarRating ? solarRating.label.toLowerCase() : "modest";
-    riskSentences.push(
-      `Solar intensity should peak at ${solarText} level, strongest near ${describeWhen(highestRadiationPoint.point.date ?? highestRadiationPoint.point)}.`,
-    );
+    if (
+      solarRating &&
+      (solarRating.className === "solar-poor" ||
+        solarRating.className === "solar-fair")
+    ) {
+      riskSentences.push(
+        `Solar intensity is expected to stay ${solarRating.label.toLowerCase()}, weakest near ${describeWhen(highestRadiationPoint.point.date ?? highestRadiationPoint.point)}.`,
+      );
+    }
   }
 
   if (!riskSentences.length) {
@@ -1611,27 +1656,17 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
       "No caution or alarm thresholds are currently expected in the next 24 hours.",
     );
   }
-
   riskSentences.forEach((sentence) => lines.push(`<div>${sentence}</div>`));
 
-  // ==================
-  // 7 DAY LOOKAHEAD
-  // ==================
   if (summaryRows && summaryRows.length > 0) {
-    const firstDay = summaryRows[0].date;
-    const lastDay = summaryRows[summaryRows.length - 1].date;
-    const fmtDate = (d) =>
-      `${getDayName(d, "short")} ${d.getDate()} ${d.toLocaleDateString(undefined, { month: "short" })}`;
-
     lines.push(
-      `<div style="margin-top:10px"><strong>7 day lookahead (${fmtDate(firstDay)} – ${fmtDate(lastDay)}):</strong></div>`,
+      `<div style="margin-top:10px"><strong>7 day lookahead:</strong></div>`,
     );
 
-    summaryRows.forEach((entry) => {
+    summaryRows.forEach((entry, dayIndex) => {
       const dayLabel = `${getDayName(entry.date, "long")} ${entry.date.getDate()} ${entry.date.toLocaleDateString(undefined, { month: "short" })}`;
       const alerts = [];
 
-      // Collect per-period stats
       let maxDayGust = -Infinity;
       let maxDayGustPeriod = null;
       let minDayTemp = Infinity;
@@ -1701,56 +1736,24 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
 
       if (worstCode !== undefined && worstSeverity >= 6) {
         const weatherText = WMO_DESCRIPTIONS[worstCode] || "unsettled weather";
-        alerts.push(`${weatherText}`);
+        alerts.push(weatherText);
       }
 
       const dailySolar = getDailySolarRating(entry.totalRadiation);
       if (
+        poorSolarDays[dayIndex] &&
         dailySolar &&
         (dailySolar.className === "solar-poor" ||
           dailySolar.className === "solar-fair")
       ) {
-        alerts.push(
-          `Solar ${dailySolar.label.toLowerCase()} generation expected`,
-        );
-      }
-      // Check per-period solar during daytime
-      for (const [bucketName, period] of Object.entries(entry.periods)) {
-        if (bucketName === "night") continue;
-        if (period.maxRadiation === -Infinity || period.maxRadiation <= 0)
-          continue;
-        const pRating = getSolarRatingFromRadiation(
-          period.maxRadiation,
-          "time-day",
-        );
-        if (
-          pRating &&
-          (pRating.className === "solar-poor" ||
-            pRating.className === "solar-fair")
-        ) {
-          // Only add if no daily-level solar alert already added
-          if (!alerts.some((a) => a.startsWith("Solar"))) {
-            alerts.push(
-              `Solar ${pRating.label.toLowerCase()} in the ${bucketName}`,
-            );
-          }
-        }
+        alerts.push(`Solar ${dailySolar.label.toLowerCase()} generation expected`);
       }
 
-      const solarText =
-        dailySolar &&
-        dailySolar.className !== "solar-poor" &&
-        dailySolar.className !== "solar-fair"
-          ? ` Solar: ${dailySolar.label}.`
-          : "";
-
-      const alertText = alerts.length
-        ? alerts.join("; ") + "."
-        : "No alerts expected.";
-
-      lines.push(
-        `<div>• <strong>${dayLabel}:</strong> ${alertText}${solarText}</div>`,
-      );
+      if (alerts.length) {
+        lines.push(
+          `<div>• <strong>${dayLabel}:</strong> ${alerts.join("; ")}.</div>`,
+        );
+      }
     });
   }
 
@@ -2017,7 +2020,7 @@ function buildForecast(data) {
 
   const conditionRow = rowDef("Weather");
   const tempRow = rowDef("Temp");
-  const windAndGustRow = rowDef("Wind/Gust");
+  const windAndGustRow = rowDef("Wind Gust");
   const solarRow = rowDef("Solar (W/m²)");
 
   segments.forEach((segment) => {
@@ -2029,6 +2032,7 @@ function buildForecast(data) {
       true,
     )}</span><span class="condition-label">${description}</span>`;
     condCell.classList.add("forecast-weather-cell");
+    condCell.classList.add(segment.timeClass);
     conditionRow.appendChild(condCell);
 
     const tempCell = document.createElement("td");
@@ -2042,20 +2046,21 @@ function buildForecast(data) {
     } else {
       tempCell.textContent = "—";
     }
+    tempCell.classList.add(segment.timeClass);
     tempRow.appendChild(tempCell);
 
     const windCell = document.createElement("td");
-    if (segment.maxWind !== undefined || segment.maxGust !== undefined) {
-      const windText =
-        segment.maxWind !== undefined
-          ? `${Math.round(segment.maxWind)} ${bearingArrow(segment.windDir)} ${degToCompass(segment.windDir)}`
+    if (segment.maxGust !== undefined) {
+      const gustText = `${Math.round(segment.maxGust)} km/h`;
+      const dirText =
+        segment.gustDir !== undefined
+          ? `${bearingArrow(segment.gustDir)} ${degToCompass(segment.gustDir)}`
           : "—";
-      const gustText =
-        segment.maxGust !== undefined ? `${Math.round(segment.maxGust)}` : "—";
-      windCell.innerHTML = `<span class="wind-speed-line">W ${windText}</span><span class="wind-direction-line">G ${gustText} km/h</span>`;
+      windCell.innerHTML = `<span class="wind-speed-line">${gustText}</span><span class="wind-direction-line">${dirText}</span>`;
     } else {
       windCell.textContent = "—";
     }
+    windCell.classList.add(segment.timeClass);
     windAndGustRow.appendChild(windCell);
 
     const solarCell = document.createElement("td");
@@ -2070,6 +2075,7 @@ function buildForecast(data) {
       solarCell.textContent = "—";
       solarCell.classList.add("solar-cell", "solar-na");
     }
+    solarCell.classList.add(segment.timeClass);
     solarRow.appendChild(solarCell);
   });
 
@@ -2170,6 +2176,11 @@ function buildForecast(data) {
     dayHeader.rowSpan = 2;
     topRow.appendChild(dayHeader);
 
+    const riskHeader = document.createElement("th");
+    riskHeader.textContent = "Risk";
+    riskHeader.rowSpan = 2;
+    topRow.appendChild(riskHeader);
+
     const groups = [
       { label: "Conditions", span: 4 },
       { label: "Temperature (min-max)", span: 4 },
@@ -2205,7 +2216,7 @@ function buildForecast(data) {
   if (!summaryRows.length) {
     const placeholder = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 13;
+    cell.colSpan = 14;
     cell.textContent = "Forecast summary unavailable.";
     placeholder.appendChild(cell);
     rowsSummary.appendChild(placeholder);
@@ -2217,6 +2228,56 @@ function buildForecast(data) {
     const dayCell = document.createElement("td");
     dayCell.textContent = `${getDayName(entry.date, "short")} ${entry.date.getDate()}`;
     row.appendChild(dayCell);
+
+    let dayMaxGust = -Infinity;
+    let dayMinTemp = Infinity;
+    let dayMaxTemp = -Infinity;
+    summaryBuckets.forEach((bucket) => {
+      const period = entry.periods[bucket];
+      if (!period) return;
+      if (period.maxGust !== -Infinity)
+        dayMaxGust = Math.max(dayMaxGust, period.maxGust);
+      if (period.minTemp !== Infinity)
+        dayMinTemp = Math.min(dayMinTemp, period.minTemp);
+      if (period.maxTemp !== -Infinity)
+        dayMaxTemp = Math.max(dayMaxTemp, period.maxTemp);
+    });
+
+    const riskMeta = getSegmentAlertMeta({
+      maxGust: dayMaxGust === -Infinity ? undefined : dayMaxGust,
+      minTemp: dayMinTemp === Infinity ? undefined : dayMinTemp,
+      maxTemp: dayMaxTemp === -Infinity ? undefined : dayMaxTemp,
+    });
+
+    const riskTriggers = [...riskMeta.triggers];
+    const dailySolarForRisk = getDailySolarRating(entry.totalRadiation);
+    if (
+      dailySolarForRisk &&
+      (dailySolarForRisk.className === "solar-poor" ||
+        dailySolarForRisk.className === "solar-fair")
+    ) {
+      riskTriggers.push({
+        type: "solar",
+        level: "caution",
+        icon:
+          dailySolarForRisk.className === "solar-poor" ? "☀️" : "🌤",
+        label: `Solar ${dailySolarForRisk.label}`,
+      });
+    }
+
+    const riskCell = document.createElement("td");
+    riskCell.classList.add("summary-risk-cell");
+    if (riskTriggers.length) {
+      riskCell.innerHTML = `<span class="risk-icons">${riskTriggers
+        .map(
+          (trigger) =>
+            `<span class="risk-icon risk-${trigger.level}" title="${trigger.label}">${trigger.icon}</span>`,
+        )
+        .join("")}</span>`;
+    } else {
+      riskCell.textContent = "—";
+    }
+    row.appendChild(riskCell);
 
     summaryBuckets.forEach((bucket) => {
       const cell = document.createElement("td");
@@ -2321,7 +2382,7 @@ async function fetchWeather(lat, lon) {
 
     const desc = WMO_DESCRIPTIONS[c.weathercode] ?? `Code ${c.weathercode}`;
     const readableDesc = desc;
-    setTextById("wxIcon", getWeatherIcon(c.weathercode, true));
+    setWeatherIconById("wxIcon", getWeatherIcon(c.weathercode, true));
     setTextById("wxIconLabel", readableDesc);
     setTextById(
       "wxTemp",
