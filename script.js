@@ -426,7 +426,9 @@ function readSettingsFromUI() {
     maxTempAlarm: getInputNumber("maxTempAlarm", settings.maxTempAlarm),
     maxTempCaution: getInputNumber("maxTempCaution", settings.maxTempCaution),
     awningMinHours: getInputNumber("awningMinHours", settings.awningMinHours),
-    awningDarkAllowed: document.getElementById("awningDarkAllowed")?.checked ?? settings.awningDarkAllowed,
+    awningDarkAllowed:
+      document.getElementById("awningDarkAllowed")?.checked ??
+      settings.awningDarkAllowed,
   };
 
   // normalize relationships
@@ -1118,20 +1120,38 @@ function pickLocalizedText(value) {
 
 function latLonToGeohash(lat, lon, precision = 6) {
   const BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
-  let idx = 0, bit = 0, evenBit = true, geohash = "";
-  let latRange = [-90, 90], lonRange = [-180, 180];
+  let idx = 0,
+    bit = 0,
+    evenBit = true,
+    geohash = "";
+  let latRange = [-90, 90],
+    lonRange = [-180, 180];
   while (geohash.length < precision) {
     if (evenBit) {
       const mid = (lonRange[0] + lonRange[1]) / 2;
-      if (lon >= mid) { idx = (idx << 1) | 1; lonRange[0] = mid; }
-      else { idx = idx << 1; lonRange[1] = mid; }
+      if (lon >= mid) {
+        idx = (idx << 1) | 1;
+        lonRange[0] = mid;
+      } else {
+        idx = idx << 1;
+        lonRange[1] = mid;
+      }
     } else {
       const mid = (latRange[0] + latRange[1]) / 2;
-      if (lat >= mid) { idx = (idx << 1) | 1; latRange[0] = mid; }
-      else { idx = idx << 1; latRange[1] = mid; }
+      if (lat >= mid) {
+        idx = (idx << 1) | 1;
+        latRange[0] = mid;
+      } else {
+        idx = idx << 1;
+        latRange[1] = mid;
+      }
     }
     evenBit = !evenBit;
-    if (++bit === 5) { geohash += BASE32[idx]; bit = 0; idx = 0; }
+    if (++bit === 5) {
+      geohash += BASE32[idx];
+      bit = 0;
+      idx = 0;
+    }
   }
   return geohash;
 }
@@ -1145,7 +1165,9 @@ async function fetchActiveAlerts(lat, lon) {
     return [];
   }
   const searchPayload = await searchResp.json();
-  const locationData = Array.isArray(searchPayload?.data) ? searchPayload.data : [];
+  const locationData = Array.isArray(searchPayload?.data)
+    ? searchPayload.data
+    : [];
   if (!locationData.length) return [];
   const geohash = locationData[0].geohash;
 
@@ -1209,7 +1231,8 @@ function renderHourlyForecastChart(hourlySlice) {
   const tempRange = Math.max(1, maxTemp - minTemp);
 
   const xFor = (i) =>
-    pad.left + (labels.length <= 1 ? plotW / 2 : (i / (labels.length - 1)) * plotW);
+    pad.left +
+    (labels.length <= 1 ? plotW / 2 : (i / (labels.length - 1)) * plotW);
   const yForTemp = (t) => pad.top + (1 - (t - minTemp) / tempRange) * plotH;
   const yForProb = (p) => pad.top + (1 - p / 100) * plotH;
 
@@ -1265,7 +1288,10 @@ function renderHourlyForecastChart(hourlySlice) {
   ctx.restore();
 
   // --- Precipitation bars ---
-  const barWidth = Math.max(8, Math.floor((plotW / Math.max(labels.length, 12)) * 0.65));
+  const barWidth = Math.max(
+    8,
+    Math.floor((plotW / Math.max(labels.length, 12)) * 0.65),
+  );
   precipProb.forEach((value, i) => {
     const prob = Math.max(0, Math.min(100, Number(value) || 0));
     if (prob === 0) return;
@@ -1289,9 +1315,9 @@ function renderHourlyForecastChart(hourlySlice) {
       const labelY = pad.top + plotH - 4;
       ctx.translate(labelX, labelY);
       ctx.rotate(-Math.PI / 2);
-      ctx.textAlign = "left";      // start of text is at bottom of screen (just above axis)
+      ctx.textAlign = "left"; // start of text is at bottom of screen (just above axis)
       ctx.textBaseline = "middle"; // glyph height centred on bar mid-line
-      ctx.fillText(label, 4, 0);   // 4px gap above axis line
+      ctx.fillText(label, 4, 0); // 4px gap above axis line
       ctx.restore();
     }
   });
@@ -1301,16 +1327,20 @@ function renderHourlyForecastChart(hourlySlice) {
   let lineMoved = false;
   temps.forEach((value, i) => {
     if (!Number.isFinite(value)) return;
-    const x = xFor(i), y = yForTemp(value);
-    if (!lineMoved) { ctx.moveTo(x, y); lineMoved = true; }
-    else ctx.lineTo(x, y);
+    const x = xFor(i),
+      y = yForTemp(value);
+    if (!lineMoved) {
+      ctx.moveTo(x, y);
+      lineMoved = true;
+    } else ctx.lineTo(x, y);
   });
   ctx.strokeStyle = "#ff9f43";
   ctx.lineWidth = 2.5;
   ctx.stroke();
 
   // --- Find max/min indices ---
-  let maxIdx = -1, minIdx = -1;
+  let maxIdx = -1,
+    minIdx = -1;
   temps.forEach((v, i) => {
     if (!Number.isFinite(v)) return;
     if (maxIdx < 0 || v > temps[maxIdx]) maxIdx = i;
@@ -1320,8 +1350,10 @@ function renderHourlyForecastChart(hourlySlice) {
   // --- Dots (normal + highlighted) ---
   temps.forEach((value, i) => {
     if (!Number.isFinite(value)) return;
-    const x = xFor(i), y = yForTemp(value);
-    const isMax = i === maxIdx, isMin = i === minIdx;
+    const x = xFor(i),
+      y = yForTemp(value);
+    const isMax = i === maxIdx,
+      isMin = i === minIdx;
     ctx.beginPath();
     ctx.arc(x, y, isMax || isMin ? 5 : 2.5, 0, Math.PI * 2);
     ctx.fillStyle = isMax ? "#ff5500" : isMin ? "#3ecfdf" : "#ffbf85";
@@ -1369,7 +1401,9 @@ function renderHourlyForecastChart(hourlySlice) {
   ctx.textBaseline = "alphabetic";
   const tickCount = Math.min(7, labels.length);
   for (let i = 0; i < tickCount; i++) {
-    const idx = Math.round((i / Math.max(1, tickCount - 1)) * (labels.length - 1));
+    const idx = Math.round(
+      (i / Math.max(1, tickCount - 1)) * (labels.length - 1),
+    );
     const d = new Date(labels[idx]);
     const hour = d.getHours().toString().padStart(2, "0");
     ctx.fillText(`${hour}:00`, xFor(idx), height - 10);
@@ -1645,15 +1679,13 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
     );
   };
 
-  const poorSolarDays = summaryRows
-    .map((entry) => {
-      const rating = getDailySolarRating(entry.totalRadiation);
-      return Boolean(
-        rating &&
-        (rating.className === "solar-poor" ||
-          rating.className === "solar-fair"),
-      );
-    });
+  const poorSolarDays = summaryRows.map((entry) => {
+    const rating = getDailySolarRating(entry.totalRadiation);
+    return Boolean(
+      rating &&
+      (rating.className === "solar-poor" || rating.className === "solar-fair"),
+    );
+  });
 
   const findNextWindBreach = () => {
     for (const point of timeline) {
@@ -1816,20 +1848,27 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
       case "wind":
         {
           // Determine the wind level of the first (current) hourly point
-          const currentGust = hourlyPoints.length > 0 ? (hourlyPoints[0].gust ?? 0) : 0;
+          const currentGust =
+            hourlyPoints.length > 0 ? (hourlyPoints[0].gust ?? 0) : 0;
           const currentLevel = gustLevel(currentGust);
           // Trend over the next 3 hours: negative = declining
-          const futureGusts = hourlyPoints.slice(0, Math.min(4, hourlyPoints.length)).map(p => p.gust ?? 0);
-          const gustTrend = futureGusts.length >= 2
-            ? futureGusts[futureGusts.length - 1] - futureGusts[0] : 0;
+          const futureGusts = hourlyPoints
+            .slice(0, Math.min(4, hourlyPoints.length))
+            .map((p) => p.gust ?? 0);
+          const gustTrend =
+            futureGusts.length >= 2
+              ? futureGusts[futureGusts.length - 1] - futureGusts[0]
+              : 0;
           if (currentLevel >= 2) {
-            actionLine = gustTrend < -2
-              ? "Winds at alarm level but easing — keep awning stowed until gusts drop below caution."
-              : "Winds at alarm level — stow the awning and secure all outdoor equipment now.";
+            actionLine =
+              gustTrend < -2
+                ? "Winds at alarm level but easing — keep awning stowed until gusts drop below caution."
+                : "Winds at alarm level — stow the awning and secure all outdoor equipment now.";
           } else if (currentLevel === 1) {
-            actionLine = gustTrend < -2
-              ? "Gusts dropping but still at caution level — keep awning stowed until fully clear."
-              : "Winds at caution level — keep the awning stowed.";
+            actionLine =
+              gustTrend < -2
+                ? "Gusts dropping but still at caution level — keep awning stowed until fully clear."
+                : "Winds at caution level — keep the awning stowed.";
           } else if (isImminent) {
             actionLine = isAlarm
               ? "Winds about to reach alarm level — bring in the awning and secure outdoor equipment now."
@@ -1892,7 +1931,7 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
     const fullTimes = window.cachedForecast?.time || [];
     const fullRadiation = window.cachedForecast?.shortwave_radiation || [];
     const nowMs = now.getTime();
-    const nowIdx = fullTimes.findIndex(t => new Date(t).getTime() >= nowMs);
+    const nowIdx = fullTimes.findIndex((t) => new Date(t).getTime() >= nowMs);
     const currentGustFull = nowIdx >= 0 ? (fullGusts[nowIdx] ?? 0) : 0;
     const currentLevelFull = gustLevel(currentGustFull);
 
@@ -1921,27 +1960,39 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
         if (!awningDarkAllowed && !isDaylight) {
           // Find when it gets light
           let nextDaylightDate = null;
-          for (let i = nowIdx; i < Math.min(nowIdx + safeCount, fullRadiation.length); i++) {
+          for (
+            let i = nowIdx;
+            i < Math.min(nowIdx + safeCount, fullRadiation.length);
+            i++
+          ) {
             if ((fullRadiation[i] ?? 0) > 0) {
               nextDaylightDate = new Date(fullTimes[i]);
               break;
             }
           }
-          const lightRef = nextDaylightDate ? ` Daylight returns around ${describeWhen(nextDaylightDate)}.` : "";
+          const lightRef = nextDaylightDate
+            ? ` Daylight returns around ${describeWhen(nextDaylightDate)}.`
+            : "";
           awningHtml = `<span class="awning-status awning-safe">✅ Winds safe for ${safeCount}+ hours (≥${awningMinHours}h required) but it's currently dark.${lightRef} Wait until daylight before deploying.</span>`;
         } else {
-          const untilRef = firstUnsafeDate ? ` (safe until around ${describeWhen(firstUnsafeDate)})` : ` (no gusts above caution in the next ${safeCount} hours)`;
+          const untilRef = firstUnsafeDate
+            ? ` (safe until around ${describeWhen(firstUnsafeDate)})`
+            : ` (no gusts above caution in the next ${safeCount} hours)`;
           awningHtml = `<span class="awning-status awning-safe">✅ Safe to set up the awning — ${safeCount} hour${safeCount !== 1 ? "s" : ""} of sub-caution winds forecast${untilRef}.</span>`;
         }
       } else {
         const hoursLabel = `${safeCount} hour${safeCount !== 1 ? "s" : ""}`;
-        const unsafeRef = firstUnsafeDate ? ` Caution-level gusts expected again around ${describeWhen(firstUnsafeDate)}.` : "";
+        const unsafeRef = firstUnsafeDate
+          ? ` Caution-level gusts expected again around ${describeWhen(firstUnsafeDate)}.`
+          : "";
         awningHtml = `<span class="awning-status awning-insufficient">⚠️ Only ${hoursLabel} below caution winds available — minimum ${awningMinHours}h required to deploy.${unsafeRef}</span>`;
       }
     } else {
       awningHtml = `<span class="awning-status awning-insufficient">⚠️ Forecast data unavailable for awning assessment.</span>`;
     }
-    lines.push(`<div class="awning-warning"><strong>Awning Warning™:</strong> ${awningHtml}</div>`);
+    lines.push(
+      `<div class="awning-warning"><strong>Awning Warning™:</strong> ${awningHtml}</div>`,
+    );
   }
 
   const riskSentences = [];
@@ -2009,13 +2060,19 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
   const coldRecoveryIdx =
     coldPeakIdx >= 0
       ? timeline.findIndex(
-          (point, idx) => idx > coldPeakIdx && getColdLevel(point.minTemp ?? point.temp) === 0,
+          (point, idx) =>
+            idx > coldPeakIdx &&
+            getColdLevel(point.minTemp ?? point.temp) === 0,
         )
       : -1;
 
   if (coldFirstIdx >= 0 && coldPeakIdx >= 0) {
-    const coldPeakTemp = Math.round(timeline[coldPeakIdx].minTemp ?? timeline[coldPeakIdx].temp);
-    const coldPeakLevel = getColdLevel(timeline[coldPeakIdx].minTemp ?? timeline[coldPeakIdx].temp);
+    const coldPeakTemp = Math.round(
+      timeline[coldPeakIdx].minTemp ?? timeline[coldPeakIdx].temp,
+    );
+    const coldPeakLevel = getColdLevel(
+      timeline[coldPeakIdx].minTemp ?? timeline[coldPeakIdx].temp,
+    );
     let sentence =
       coldPeakLevel >= 2
         ? `Temperature to drop below alarm level around ${describeWhen(timeline[coldPeakIdx].date ?? timeline[coldPeakIdx])} (down to ${coldPeakTemp}°C).`
@@ -2043,13 +2100,19 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
   const heatRecoveryIdx =
     heatPeakIdx >= 0
       ? timeline.findIndex(
-          (point, idx) => idx > heatPeakIdx && getHeatLevel(point.maxTemp ?? point.temp) === 0,
+          (point, idx) =>
+            idx > heatPeakIdx &&
+            getHeatLevel(point.maxTemp ?? point.temp) === 0,
         )
       : -1;
 
   if (heatFirstIdx >= 0 && heatPeakIdx >= 0) {
-    const heatPeakTemp = Math.round(timeline[heatPeakIdx].maxTemp ?? timeline[heatPeakIdx].temp);
-    const heatPeakLevel = getHeatLevel(timeline[heatPeakIdx].maxTemp ?? timeline[heatPeakIdx].temp);
+    const heatPeakTemp = Math.round(
+      timeline[heatPeakIdx].maxTemp ?? timeline[heatPeakIdx].temp,
+    );
+    const heatPeakLevel = getHeatLevel(
+      timeline[heatPeakIdx].maxTemp ?? timeline[heatPeakIdx].temp,
+    );
     let sentence =
       heatPeakLevel >= 2
         ? `Temperature to rise above alarm level around ${describeWhen(timeline[heatPeakIdx].date ?? timeline[heatPeakIdx])} (up to ${heatPeakTemp}°C).`
@@ -2443,9 +2506,10 @@ function buildForecast(data) {
             .join("")
         : "";
 
-      symbolCell.innerHTML = alertMeta.className === "segment-normal"
-        ? `<span class="risk-icons">${iconMarkup}</span>`
-        : `<span class="risk-chip">${alertMeta.label}</span><span class="risk-icons">${iconMarkup}</span>`;
+      symbolCell.innerHTML =
+        alertMeta.className === "segment-normal"
+          ? `<span class="risk-icons">${iconMarkup}</span>`
+          : `<span class="risk-chip">${alertMeta.label}</span><span class="risk-icons">${iconMarkup}</span>`;
       symbolRow.appendChild(symbolCell);
     });
   }

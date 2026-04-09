@@ -1,16 +1,12 @@
 {
-	"version": "2.0.0",
-	"tasks": [
-		{
-			"label": "Serve WeatherWarning locally",
-			"type": "shell",
-			"command": "python3",
-			"args": [
-				"-m",
-				"http.server",
-				"8081"
-			],
-			"isBackground": true
-		}
-	]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Serve WeatherWarning locally",
+      "type": "shell",
+      "command": "python3",
+      "args": ["-m", "http.server", "8081"],
+      "isBackground": true
+    }
+  ]
 }
