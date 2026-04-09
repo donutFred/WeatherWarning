@@ -27,9 +27,9 @@
       <div class="logo-title">
         <img src="icon.png" alt="Weather logo" class="app-logo" />
         <div>
-          <h1>name</h1>
+          <h1>My Weather Warnings</h1>
           <p class="subtle title-subtitle">
-            Customised wind, weather and solar forecasting for Caravans and
+            Customisable wind, weather and solar forecasting for Caravans and
             Campers
           </p>
         </div>
@@ -126,6 +126,9 @@
             Waiting for your location…
           </div>
           <div id="weatherData" class="data hidden">
+            <div class="wx-alerts-banner">
+              <strong>Alerts:</strong> <span id="wxAlerts">—</span>
+            </div>
             <div class="weather-current-grid">
               <div class="wx-icon-pane">
                 <span id="wxIcon" class="wx-icon" aria-hidden="true">—</span>
@@ -134,9 +137,6 @@
                 </div>
               </div>
               <div class="weather-current-details">
-                <div>
-                  <strong>Condition:</strong> <span id="wxDesc">—</span>
-                </div>
                 <div>
                   <strong>Temperature:</strong> <span id="wxTemp">—</span>
                 </div>
@@ -155,6 +155,18 @@
 
       <section class="card full-width">
         <h2 id="forecast24Heading">Forecast: Next 24 hours</h2>
+        <div class="hourly-chart-wrap">
+          <canvas
+            id="hourlyForecastChart"
+            class="hourly-forecast-chart"
+            aria-label="Next 24 hours temperature and precipitation chart"
+          ></canvas>
+          <div class="hourly-chart-legend note">
+            <span class="legend-line-temp"></span> Temperature (line)
+            <span class="legend-bar-rain"></span> Precipitation probability
+            (bars)
+          </div>
+        </div>
         <div class="forecast24-legend note">
           <div class="legend-row">
             <strong>Risk icons:</strong>
@@ -218,7 +230,7 @@
       </section>
 
       <section class="card full-width" id="settingsSection">
-        <h2>Configurable Alert Settings</h2>
+        <h2>Configurable Settings</h2>
         <p class="note">
           Set the alert levels (caution and alarm) for wind gusts and
           temperature. Caution triggers a warning zone and alarm triggers a
@@ -315,6 +327,31 @@
           <span class="legend-normal">normal</span> →
           <span class="legend-warning">max caution</span> →
           <span class="legend-alarm">max alarm</span>
+        </div>
+        <div class="settings-box group-awning">
+          <div class="settings-group-title">Awning advisor</div>
+          <div class="threshold-input-grid two-col">
+            <label>
+              Minimum hours to deploy awning
+              <input
+                id="awningMinHours"
+                type="number"
+                min="1"
+                max="168"
+                step="1"
+                value="48"
+                aria-label="Minimum safe hours to deploy awning"
+              />
+            </label>
+            <label class="toggle-label">
+              <span>Happy to operate awning in the dark</span>
+              <input
+                id="awningDarkAllowed"
+                type="checkbox"
+                aria-label="Allow awning operation in the dark"
+              />
+            </label>
+          </div>
         </div>
         <div class="settings-actions">
           <button id="saveSettingsButton" type="button">Save settings</button>

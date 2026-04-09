@@ -148,6 +148,8 @@ const DEFAULT_SETTINGS = {
   minTempCaution: 10,
   maxTempAlarm: 40,
   maxTempCaution: 30,
+  awningMinHours: 48,
+  awningDarkAllowed: false,
 };
 let settings = loadSettings();
 
@@ -404,6 +406,9 @@ function applySettingsToUI(currentSettings = settings) {
 
   updateWindGustBar(currentSettings);
   updateTempScaleBar(currentSettings);
+  setInputValue("awningMinHours", currentSettings.awningMinHours);
+  const awningDarkEl = document.getElementById("awningDarkAllowed");
+  if (awningDarkEl) awningDarkEl.checked = !!currentSettings.awningDarkAllowed;
 }
 
 function readSettingsFromUI() {
@@ -420,6 +425,8 @@ function readSettingsFromUI() {
     minTempCaution: getInputNumber("minTempCaution", settings.minTempCaution),
     maxTempAlarm: getInputNumber("maxTempAlarm", settings.maxTempAlarm),
     maxTempCaution: getInputNumber("maxTempCaution", settings.maxTempCaution),
+    awningMinHours: getInputNumber("awningMinHours", settings.awningMinHours),
+    awningDarkAllowed: document.getElementById("awningDarkAllowed")?.checked ?? settings.awningDarkAllowed,
   };
 
   // normalize relationships
@@ -1096,6 +1103,279 @@ function extractSuburb(address) {
   return found || null;
 }
 
+function pickLocalizedText(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value !== "object") return String(value);
+  return (
+    value.en ||
+    value["en-US"] ||
+    value["en_AU"] ||
+    Object.values(value).find((v) => typeof v === "string") ||
+    ""
+  );
+}
+
+function latLonToGeohash(lat, lon, precision = 6) {
+  const BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
+  let idx = 0, bit = 0, evenBit = true, geohash = "";
+  let latRange = [-90, 90], lonRange = [-180, 180];
+  while (geohash.length < precision) {
+    if (evenBit) {
+      const mid = (lonRange[0] + lonRange[1]) / 2;
+      if (lon >= mid) { idx = (idx << 1) | 1; lonRange[0] = mid; }
+      else { idx = idx << 1; lonRange[1] = mid; }
+    } else {
+      const mid = (latRange[0] + latRange[1]) / 2;
+      if (lat >= mid) { idx = (idx << 1) | 1; latRange[0] = mid; }
+      else { idx = idx << 1; latRange[1] = mid; }
+    }
+    evenBit = !evenBit;
+    if (++bit === 5) { geohash += BASE32[idx]; bit = 0; idx = 0; }
+  }
+  return geohash;
+}
+
+async function fetchActiveAlerts(lat, lon) {
+  // Use BOM's own search API to get the correct internal geohash for the location
+  const searchUrl = `https://api.weather.bom.gov.au/v1/locations?search=${lat},${lon}&limit=1`;
+  const searchResp = await fetch(searchUrl);
+  if (!searchResp.ok) {
+    console.warn(`BOM location search HTTP ${searchResp.status}`);
+    return [];
+  }
+  const searchPayload = await searchResp.json();
+  const locationData = Array.isArray(searchPayload?.data) ? searchPayload.data : [];
+  if (!locationData.length) return [];
+  const geohash = locationData[0].geohash;
+
+  const bomUrl = `https://api.weather.bom.gov.au/v1/locations/${geohash}/warnings`;
+  const response = await fetch(bomUrl);
+  if (!response.ok) {
+    console.warn(`BOM alerts HTTP ${response.status} for geohash ${geohash}`);
+    return [];
+  }
+  const payload = await response.json();
+  const items = Array.isArray(payload?.data) ? payload.data : [];
+  return items
+    .map((item) => {
+      const title = item.short_title || item.title || item.type || "";
+      return title.trim();
+    })
+    .filter(Boolean)
+    .slice(0, 5);
+}
+
+function renderHourlyForecastChart(hourlySlice) {
+  const canvas = document.getElementById("hourlyForecastChart");
+  if (!canvas) return;
+
+  const labels = hourlySlice.times || [];
+  const temps = hourlySlice.temps || [];
+  const precipProb = hourlySlice.precipProbability || [];
+  const precipAmounts = hourlySlice.precipAmounts || [];
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(320, Math.floor(rect.width || 320));
+  const height = 240;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.floor(width * dpr);
+  canvas.height = Math.floor(height * dpr);
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  if (!labels.length || !temps.length) {
+    ctx.fillStyle = "rgba(230,240,255,0.7)";
+    ctx.font = "13px system-ui";
+    ctx.fillText("Chart unavailable", 12, 24);
+    return;
+  }
+
+  const pad = { top: 28, right: 46, bottom: 34, left: 44 };
+  const plotW = width - pad.left - pad.right;
+  const plotH = height - pad.top - pad.bottom;
+
+  const numericTemps = temps.filter((t) => Number.isFinite(t));
+  const rawMin = Math.min(...numericTemps);
+  const rawMax = Math.max(...numericTemps);
+  const tempPadding = Math.max(1, (rawMax - rawMin) * 0.12);
+  const minTemp = Math.floor(rawMin - tempPadding);
+  const maxTemp = Math.ceil(rawMax + tempPadding);
+  const tempRange = Math.max(1, maxTemp - minTemp);
+
+  const xFor = (i) =>
+    pad.left + (labels.length <= 1 ? plotW / 2 : (i / (labels.length - 1)) * plotW);
+  const yForTemp = (t) => pad.top + (1 - (t - minTemp) / tempRange) * plotH;
+  const yForProb = (p) => pad.top + (1 - p / 100) * plotH;
+
+  // --- Gridlines ---
+  ctx.strokeStyle = "rgba(180, 205, 240, 0.18)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (i / 4) * plotH;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(width - pad.right, y);
+    ctx.stroke();
+  }
+
+  // --- Left axis: temperature labels ---
+  ctx.textBaseline = "middle";
+  ctx.font = "10px system-ui";
+  ctx.textAlign = "right";
+  for (let i = 0; i <= 4; i++) {
+    const t = maxTemp - (i / 4) * tempRange;
+    ctx.fillStyle = "#ff9f43";
+    ctx.fillText(`${Math.round(t)}°`, pad.left - 6, pad.top + (i / 4) * plotH);
+  }
+  // Left axis title
+  ctx.save();
+  ctx.translate(10, pad.top + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "rgba(255,159,67,0.75)";
+  ctx.font = "9px system-ui";
+  ctx.fillText("Temp (°C)", 0, 0);
+  ctx.restore();
+
+  // --- Right axis: precipitation probability labels ---
+  ctx.font = "10px system-ui";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i <= 4; i++) {
+    const pct = 100 - i * 25;
+    ctx.fillStyle = "rgba(62,207,223,0.85)";
+    ctx.fillText(`${pct}%`, width - pad.right + 5, pad.top + (i / 4) * plotH);
+  }
+  // Right axis title
+  ctx.save();
+  ctx.translate(width - 4, pad.top + plotH / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "rgba(62,207,223,0.65)";
+  ctx.font = "9px system-ui";
+  ctx.fillText("Rain%", 0, 0);
+  ctx.restore();
+
+  // --- Precipitation bars ---
+  const barWidth = Math.max(8, Math.floor((plotW / Math.max(labels.length, 12)) * 0.65));
+  precipProb.forEach((value, i) => {
+    const prob = Math.max(0, Math.min(100, Number(value) || 0));
+    if (prob === 0) return;
+    const x = xFor(i) - barWidth / 2;
+    const y = yForProb(prob);
+    const barH = pad.top + plotH - y;
+    ctx.fillStyle = "rgba(62,207,223,0.32)";
+    ctx.strokeStyle = "rgba(62,207,223,0.72)";
+    ctx.lineWidth = 0.8;
+    ctx.fillRect(x, y, barWidth, barH);
+    ctx.strokeRect(x, y, barWidth, barH);
+
+    // Rain amount label: vertical, centered in bar, bottom-aligned just above axis
+    const mm = Number(precipAmounts[i]);
+    if (Number.isFinite(mm) && mm >= 0.1) {
+      const label = mm < 1 ? `${mm.toFixed(1)}mm` : `${Math.round(mm)}mm`;
+      ctx.save();
+      ctx.fillStyle = "rgba(200,245,255,0.97)";
+      ctx.font = "bold 11px system-ui";
+      const labelX = x + barWidth / 2;
+      const labelY = pad.top + plotH - 4;
+      ctx.translate(labelX, labelY);
+      ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = "left";      // start of text is at bottom of screen (just above axis)
+      ctx.textBaseline = "middle"; // glyph height centred on bar mid-line
+      ctx.fillText(label, 4, 0);   // 4px gap above axis line
+      ctx.restore();
+    }
+  });
+
+  // --- Temperature line ---
+  ctx.beginPath();
+  let lineMoved = false;
+  temps.forEach((value, i) => {
+    if (!Number.isFinite(value)) return;
+    const x = xFor(i), y = yForTemp(value);
+    if (!lineMoved) { ctx.moveTo(x, y); lineMoved = true; }
+    else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = "#ff9f43";
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // --- Find max/min indices ---
+  let maxIdx = -1, minIdx = -1;
+  temps.forEach((v, i) => {
+    if (!Number.isFinite(v)) return;
+    if (maxIdx < 0 || v > temps[maxIdx]) maxIdx = i;
+    if (minIdx < 0 || v < temps[minIdx]) minIdx = i;
+  });
+
+  // --- Dots (normal + highlighted) ---
+  temps.forEach((value, i) => {
+    if (!Number.isFinite(value)) return;
+    const x = xFor(i), y = yForTemp(value);
+    const isMax = i === maxIdx, isMin = i === minIdx;
+    ctx.beginPath();
+    ctx.arc(x, y, isMax || isMin ? 5 : 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = isMax ? "#ff5500" : isMin ? "#3ecfdf" : "#ffbf85";
+    ctx.fill();
+    if (isMax || isMin) {
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  });
+
+  // --- Max/min callout labels ---
+  const drawCallout = (idx, above) => {
+    if (idx < 0 || !Number.isFinite(temps[idx])) return;
+    const x = xFor(idx);
+    const y = yForTemp(temps[idx]);
+    const label = `${Math.round(temps[idx])}°`;
+    ctx.font = "bold 11px system-ui";
+    const tw = ctx.measureText(label).width;
+    const isLeft = idx <= labels.length * 0.15;
+    const isRight = idx >= labels.length * 0.85;
+    ctx.textAlign = isRight ? "right" : isLeft ? "left" : "center";
+    const labelX = isRight ? x : isLeft ? x : x;
+    const labelY = above
+      ? Math.max(pad.top + 9, y - 13)
+      : Math.min(pad.top + plotH - 9, y + 13);
+    // background pill
+    ctx.fillStyle = above ? "rgba(60,15,0,0.72)" : "rgba(0,20,30,0.72)";
+    const halfW = tw / 2 + 3;
+    const pillX = isRight ? x - tw - 3 : isLeft ? x - 3 : x - halfW;
+    ctx.beginPath();
+    ctx.roundRect(pillX, labelY - 7, tw + 6, 14, 4);
+    ctx.fill();
+    ctx.fillStyle = above ? "#ff7020" : "#3ecfdf";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, labelX, labelY);
+  };
+  drawCallout(maxIdx, true);
+  drawCallout(minIdx, false);
+
+  // --- Bottom time labels ---
+  ctx.fillStyle = "rgba(230,240,255,0.78)";
+  ctx.font = "11px system-ui";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  const tickCount = Math.min(7, labels.length);
+  for (let i = 0; i < tickCount; i++) {
+    const idx = Math.round((i / Math.max(1, tickCount - 1)) * (labels.length - 1));
+    const d = new Date(labels[idx]);
+    const hour = d.getHours().toString().padStart(2, "0");
+    ctx.fillText(`${hour}:00`, xFor(idx), height - 10);
+  }
+}
+
 async function fetchAddress(lat, lon) {
   const addrEl = document.getElementById("address");
   try {
@@ -1373,10 +1653,6 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
         (rating.className === "solar-poor" ||
           rating.className === "solar-fair"),
       );
-    })
-    .map((isPoor, idx, arr) => {
-      if (!isPoor) return false;
-      return Boolean(arr[idx - 1] || arr[idx + 1]);
     });
 
   const findNextWindBreach = () => {
@@ -1538,13 +1814,31 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
 
     switch (nearestBreach.type) {
       case "wind":
-        actionLine = isAlarm
-          ? `Bring in the awning and secure outdoor equipment before ${timeRef} when wind gusts are forecast to reach alarm level.`
-          : `Consider bringing in the awning before ${timeRef} when caution-level wind gusts are expected.`;
-        if (isImminent) {
-          actionLine = isAlarm
-            ? "Take immediate action: bring in the awning and secure outdoor equipment now."
-            : "Consider securing the awning now as caution-level gusts are imminent.";
+        {
+          // Determine the wind level of the first (current) hourly point
+          const currentGust = hourlyPoints.length > 0 ? (hourlyPoints[0].gust ?? 0) : 0;
+          const currentLevel = gustLevel(currentGust);
+          // Trend over the next 3 hours: negative = declining
+          const futureGusts = hourlyPoints.slice(0, Math.min(4, hourlyPoints.length)).map(p => p.gust ?? 0);
+          const gustTrend = futureGusts.length >= 2
+            ? futureGusts[futureGusts.length - 1] - futureGusts[0] : 0;
+          if (currentLevel >= 2) {
+            actionLine = gustTrend < -2
+              ? "Winds at alarm level but easing — keep awning stowed until gusts drop below caution."
+              : "Winds at alarm level — stow the awning and secure all outdoor equipment now.";
+          } else if (currentLevel === 1) {
+            actionLine = gustTrend < -2
+              ? "Gusts dropping but still at caution level — keep awning stowed until fully clear."
+              : "Winds at caution level — keep the awning stowed.";
+          } else if (isImminent) {
+            actionLine = isAlarm
+              ? "Winds about to reach alarm level — bring in the awning and secure outdoor equipment now."
+              : "Caution-level gusts imminent — secure the awning before they arrive.";
+          } else {
+            actionLine = isAlarm
+              ? `Bring in the awning and secure outdoor equipment before ${timeRef} when wind gusts are forecast to reach alarm level.`
+              : `Consider bringing in the awning before ${timeRef} when caution-level wind gusts are expected.`;
+          }
         }
         break;
       case "cold":
@@ -1590,47 +1884,187 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
 
   lines.push(`<div><strong>Next 24 hours:</strong></div>`);
 
-  const riskSentences = [];
-  if (windAlarmIdx >= 0 && windCautionIdx >= 0) {
-    let sentence = `Wind gusts are likely to reach caution level from ${describeWhen(timeline[windCautionIdx].date ?? timeline[windCautionIdx])} and then alarm level at ${describeWhen(timeline[windAlarmIdx].date ?? timeline[windAlarmIdx])}.`;
-    if (alarmDropIdx >= 0) {
-      sentence += ` Gusts should drop below alarm around ${describeWhen(timeline[alarmDropIdx].date ?? timeline[alarmDropIdx])}.`;
+  // --- Awning Warning ---
+  {
+    const awningMinHours = Math.max(1, settings.awningMinHours || 48);
+    const awningDarkAllowed = !!settings.awningDarkAllowed;
+    const fullGusts = window.cachedForecast?.windgusts_10m || [];
+    const fullTimes = window.cachedForecast?.time || [];
+    const fullRadiation = window.cachedForecast?.shortwave_radiation || [];
+    const nowMs = now.getTime();
+    const nowIdx = fullTimes.findIndex(t => new Date(t).getTime() >= nowMs);
+    const currentGustFull = nowIdx >= 0 ? (fullGusts[nowIdx] ?? 0) : 0;
+    const currentLevelFull = gustLevel(currentGustFull);
+
+    let awningHtml = "";
+    if (currentLevelFull >= 2) {
+      awningHtml = `<span class="awning-status awning-alarm">⛔ Stow the awning immediately — alarm-level wind gusts.</span>`;
+    } else if (currentLevelFull >= 1) {
+      awningHtml = `<span class="awning-status awning-caution">🟠 Keep awning stowed — gusts currently at caution level.</span>`;
+    } else if (nowIdx >= 0) {
+      // Count contiguous safe hours from now across full 7-day forecast
+      let safeCount = 0;
+      let firstUnsafeDate = null;
+      for (let i = nowIdx; i < fullGusts.length; i++) {
+        const g = fullGusts[i] ?? 0;
+        if (g >= settings.maxWindGustCaution) {
+          firstUnsafeDate = new Date(fullTimes[i]);
+          break;
+        }
+        safeCount++;
+      }
+
+      if (safeCount >= awningMinHours) {
+        // Check daylight at deploy time if dark not allowed
+        const deployRadiation = nowIdx >= 0 ? (fullRadiation[nowIdx] ?? 0) : 0;
+        const isDaylight = deployRadiation > 0;
+        if (!awningDarkAllowed && !isDaylight) {
+          // Find when it gets light
+          let nextDaylightDate = null;
+          for (let i = nowIdx; i < Math.min(nowIdx + safeCount, fullRadiation.length); i++) {
+            if ((fullRadiation[i] ?? 0) > 0) {
+              nextDaylightDate = new Date(fullTimes[i]);
+              break;
+            }
+          }
+          const lightRef = nextDaylightDate ? ` Daylight returns around ${describeWhen(nextDaylightDate)}.` : "";
+          awningHtml = `<span class="awning-status awning-safe">✅ Winds safe for ${safeCount}+ hours (≥${awningMinHours}h required) but it's currently dark.${lightRef} Wait until daylight before deploying.</span>`;
+        } else {
+          const untilRef = firstUnsafeDate ? ` (safe until around ${describeWhen(firstUnsafeDate)})` : ` (no gusts above caution in the next ${safeCount} hours)`;
+          awningHtml = `<span class="awning-status awning-safe">✅ Safe to set up the awning — ${safeCount} hour${safeCount !== 1 ? "s" : ""} of sub-caution winds forecast${untilRef}.</span>`;
+        }
+      } else {
+        const hoursLabel = `${safeCount} hour${safeCount !== 1 ? "s" : ""}`;
+        const unsafeRef = firstUnsafeDate ? ` Caution-level gusts expected again around ${describeWhen(firstUnsafeDate)}.` : "";
+        awningHtml = `<span class="awning-status awning-insufficient">⚠️ Only ${hoursLabel} below caution winds available — minimum ${awningMinHours}h required to deploy.${unsafeRef}</span>`;
+      }
+    } else {
+      awningHtml = `<span class="awning-status awning-insufficient">⚠️ Forecast data unavailable for awning assessment.</span>`;
     }
-    if (cautionDropIdx >= 0) {
-      sentence += ` They should drop below caution around ${describeWhen(timeline[cautionDropIdx].date ?? timeline[cautionDropIdx])}.`;
+    lines.push(`<div class="awning-warning"><strong>Awning Warning™:</strong> ${awningHtml}</div>`);
+  }
+
+  const riskSentences = [];
+  const windPeakIdx = timeline.reduce((bestIdx, point, idx, arr) => {
+    const value = point.maxGust ?? point.gust;
+    if (value === undefined) return bestIdx;
+    if (bestIdx < 0) return idx;
+    const bestValue = arr[bestIdx].maxGust ?? arr[bestIdx].gust ?? -Infinity;
+    return value > bestValue ? idx : bestIdx;
+  }, -1);
+  const windPeakLevel =
+    windPeakIdx >= 0
+      ? gustLevel(timeline[windPeakIdx].maxGust ?? timeline[windPeakIdx].gust)
+      : 0;
+  const firstWindAlertIdx = timeline.findIndex(
+    (point) => gustLevel(point.maxGust ?? point.gust) >= 1,
+  );
+  const windRecoveryIdx =
+    windPeakIdx >= 0
+      ? timeline.findIndex(
+          (point, idx) =>
+            idx > windPeakIdx && gustLevel(point.maxGust ?? point.gust) === 0,
+        )
+      : -1;
+
+  if (firstWindAlertIdx >= 0) {
+    let sentence =
+      windPeakLevel >= 2
+        ? `Wind gusts to reach alarm level around ${describeWhen(timeline[windPeakIdx].date ?? timeline[windPeakIdx])}, peaking near ${Math.round(maxGust)} km/h.`
+        : `Wind gusts to reach caution level around ${describeWhen(timeline[firstWindAlertIdx].date ?? timeline[firstWindAlertIdx])}, peaking near ${Math.round(maxGust)} km/h.`;
+
+    if (windRecoveryIdx >= 0) {
+      sentence += ` Gusts should ease below caution around ${describeWhen(timeline[windRecoveryIdx].date ?? timeline[windRecoveryIdx])}.`;
     }
     riskSentences.push(sentence);
-  } else if (windCautionIdx >= 0) {
-    riskSentences.push(
-      `Wind gusts are likely to reach caution level from ${describeWhen(timeline[windCautionIdx].date ?? timeline[windCautionIdx])}, peaking near ${Math.round(maxGust)} km/h.`,
-    );
   }
 
-  if (coldAlarmPoint) {
-    riskSentences.push(
-      `Low temperature alarm risk begins around ${describeWhen(coldAlarmPoint.date ?? coldAlarmPoint)} (down to about ${Math.round(minTemp)}°C).`,
-    );
-  } else if (coldCautionPoint) {
-    riskSentences.push(
-      `Low temperature caution starts around ${describeWhen(coldCautionPoint.date ?? coldCautionPoint)} (down to about ${Math.round(minTemp)}°C).`,
-    );
+  const getColdLevel = (value) => {
+    if (value === undefined || value === null) return 0;
+    if (value <= settings.minTempAlarm) return 2;
+    if (value <= settings.minTempCaution) return 1;
+    return 0;
+  };
+  const getHeatLevel = (value) => {
+    if (value === undefined || value === null) return 0;
+    if (value >= settings.maxTempAlarm) return 2;
+    if (value >= settings.maxTempCaution) return 1;
+    return 0;
+  };
+
+  const coldFirstIdx = timeline.findIndex(
+    (point) => getColdLevel(point.minTemp ?? point.temp) >= 1,
+  );
+  const coldPeakIdx = timeline.reduce((bestIdx, point, idx, arr) => {
+    const value = point.minTemp ?? point.temp;
+    const level = getColdLevel(value);
+    if (level === 0) return bestIdx;
+    if (bestIdx < 0) return idx;
+    const bestValue = arr[bestIdx].minTemp ?? arr[bestIdx].temp;
+    const bestLevel = getColdLevel(bestValue);
+    if (level > bestLevel) return idx;
+    if (level === bestLevel && value < bestValue) return idx;
+    return bestIdx;
+  }, -1);
+  const coldRecoveryIdx =
+    coldPeakIdx >= 0
+      ? timeline.findIndex(
+          (point, idx) => idx > coldPeakIdx && getColdLevel(point.minTemp ?? point.temp) === 0,
+        )
+      : -1;
+
+  if (coldFirstIdx >= 0 && coldPeakIdx >= 0) {
+    const coldPeakTemp = Math.round(timeline[coldPeakIdx].minTemp ?? timeline[coldPeakIdx].temp);
+    const coldPeakLevel = getColdLevel(timeline[coldPeakIdx].minTemp ?? timeline[coldPeakIdx].temp);
+    let sentence =
+      coldPeakLevel >= 2
+        ? `Temperature to drop below alarm level around ${describeWhen(timeline[coldPeakIdx].date ?? timeline[coldPeakIdx])} (down to ${coldPeakTemp}°C).`
+        : `Temperature to drop below caution level around ${describeWhen(timeline[coldFirstIdx].date ?? timeline[coldFirstIdx])} (down to ${coldPeakTemp}°C).`;
+    if (coldRecoveryIdx >= 0) {
+      sentence += ` Temp to recover above caution around ${describeWhen(timeline[coldRecoveryIdx].date ?? timeline[coldRecoveryIdx])}.`;
+    }
+    riskSentences.push(sentence);
   }
 
-  if (hotAlarmPoint) {
-    riskSentences.push(
-      `High temperature alarm risk starts around ${describeWhen(hotAlarmPoint.date ?? hotAlarmPoint)} (up to about ${Math.round(maxTemp)}°C).`,
-    );
-  } else if (hotCautionPoint) {
-    riskSentences.push(
-      `High temperature caution starts around ${describeWhen(hotCautionPoint.date ?? hotCautionPoint)} (up to about ${Math.round(maxTemp)}°C).`,
-    );
+  const heatFirstIdx = timeline.findIndex(
+    (point) => getHeatLevel(point.maxTemp ?? point.temp) >= 1,
+  );
+  const heatPeakIdx = timeline.reduce((bestIdx, point, idx, arr) => {
+    const value = point.maxTemp ?? point.temp;
+    const level = getHeatLevel(value);
+    if (level === 0) return bestIdx;
+    if (bestIdx < 0) return idx;
+    const bestValue = arr[bestIdx].maxTemp ?? arr[bestIdx].temp;
+    const bestLevel = getHeatLevel(bestValue);
+    if (level > bestLevel) return idx;
+    if (level === bestLevel && value > bestValue) return idx;
+    return bestIdx;
+  }, -1);
+  const heatRecoveryIdx =
+    heatPeakIdx >= 0
+      ? timeline.findIndex(
+          (point, idx) => idx > heatPeakIdx && getHeatLevel(point.maxTemp ?? point.temp) === 0,
+        )
+      : -1;
+
+  if (heatFirstIdx >= 0 && heatPeakIdx >= 0) {
+    const heatPeakTemp = Math.round(timeline[heatPeakIdx].maxTemp ?? timeline[heatPeakIdx].temp);
+    const heatPeakLevel = getHeatLevel(timeline[heatPeakIdx].maxTemp ?? timeline[heatPeakIdx].temp);
+    let sentence =
+      heatPeakLevel >= 2
+        ? `Temperature to rise above alarm level around ${describeWhen(timeline[heatPeakIdx].date ?? timeline[heatPeakIdx])} (up to ${heatPeakTemp}°C).`
+        : `Temperature to rise above caution level around ${describeWhen(timeline[heatFirstIdx].date ?? timeline[heatFirstIdx])} (up to ${heatPeakTemp}°C).`;
+    if (heatRecoveryIdx >= 0) {
+      sentence += ` Temp to ease below caution around ${describeWhen(timeline[heatRecoveryIdx].date ?? timeline[heatRecoveryIdx])}.`;
+    }
+    riskSentences.push(sentence);
   }
 
   if (highestWeatherPoint && highestWeatherPoint.severity >= 6) {
     const weatherText =
       WMO_DESCRIPTIONS[highestWeatherPoint.code] || "unsettled weather";
     riskSentences.push(
-      `The roughest weather period looks to be ${weatherText.toLowerCase()} around ${describeWhen(highestWeatherPoint.point.date ?? highestWeatherPoint.point)}.`,
+      `The most significant weather looks to be ${weatherText.toLowerCase()} around ${describeWhen(highestWeatherPoint.point.date ?? highestWeatherPoint.point)}.`,
     );
   }
 
@@ -1699,37 +2133,37 @@ function updateLookaheadSummary(segments, hourlyPoints = [], summaryRows = []) {
 
       if (maxDayGust >= settings.maxWindGustAlarm) {
         alerts.push(
-          `Wind alarm (gusts up to ${Math.round(maxDayGust)} km/h in the ${maxDayGustPeriod})`,
+          `Wind gusts up to ${Math.round(maxDayGust)} km/h in the ${maxDayGustPeriod}`,
         );
       } else if (maxDayGust >= settings.maxWindGustCaution) {
         alerts.push(
-          `Wind caution (gusts up to ${Math.round(maxDayGust)} km/h in the ${maxDayGustPeriod})`,
+          `Wind gusts up to ${Math.round(maxDayGust)} km/h in the ${maxDayGustPeriod}`,
         );
       }
 
       if (minDayTemp !== Infinity && minDayTemp <= settings.minTempAlarm) {
         alerts.push(
-          `Cold alarm (down to ${Math.round(minDayTemp)}°C in the ${minDayTempPeriod})`,
+          `Cold down to ${Math.round(minDayTemp)}°C in the ${minDayTempPeriod}`,
         );
       } else if (
         minDayTemp !== Infinity &&
         minDayTemp <= settings.minTempCaution
       ) {
         alerts.push(
-          `Cold caution (down to ${Math.round(minDayTemp)}°C in the ${minDayTempPeriod})`,
+          `Cold down to ${Math.round(minDayTemp)}°C in the ${minDayTempPeriod}`,
         );
       }
 
       if (maxDayTemp !== -Infinity && maxDayTemp >= settings.maxTempAlarm) {
         alerts.push(
-          `Heat alarm (up to ${Math.round(maxDayTemp)}°C in the ${maxDayTempPeriod})`,
+          `Heat up to ${Math.round(maxDayTemp)}°C in the ${maxDayTempPeriod}`,
         );
       } else if (
         maxDayTemp !== -Infinity &&
         maxDayTemp >= settings.maxTempCaution
       ) {
         alerts.push(
-          `Heat caution (up to ${Math.round(maxDayTemp)}°C in the ${maxDayTempPeriod})`,
+          `Heat up to ${Math.round(maxDayTemp)}°C in the ${maxDayTempPeriod}`,
         );
       }
 
@@ -1871,6 +2305,8 @@ function buildForecast(data) {
   const windDirs = data.winddirection_10m || [];
   const windSpeeds = data.wind_speed_10m || [];
   const radiation = data.shortwave_radiation || [];
+  const precipitationProbability = data.precipitation_probability || [];
+  const precipitationAmounts = data.precipitation || [];
 
   // next full hour
   const now = new Date();
@@ -1969,13 +2405,22 @@ function buildForecast(data) {
   for (let idx = start; idx < end; idx++) {
     hourlyPoints.push({
       date: new Date(times[idx]),
+      time: times[idx],
       gust: gusts[idx],
       temp: temps[idx],
       code: codes[idx],
       radiation: radiation[idx],
+      precipitationProbability: precipitationProbability[idx],
       timeClass: getSegmentTimeClass(new Date(times[idx])),
     });
   }
+
+  renderHourlyForecastChart({
+    times: times.slice(start, end),
+    temps: temps.slice(start, end),
+    precipProbability: precipitationProbability.slice(start, end),
+    precipAmounts: precipitationAmounts.slice(start, end),
+  });
 
   // Draw risk row and time header row for the next 24h timeline.
   const symbolRow = document.getElementById("forecast24SymbolRow");
@@ -1998,7 +2443,9 @@ function buildForecast(data) {
             .join("")
         : "";
 
-      symbolCell.innerHTML = `<span class="risk-chip">${alertMeta.label}</span><span class="risk-icons">${iconMarkup}</span>`;
+      symbolCell.innerHTML = alertMeta.className === "segment-normal"
+        ? `<span class="risk-icons">${iconMarkup}</span>`
+        : `<span class="risk-chip">${alertMeta.label}</span><span class="risk-icons">${iconMarkup}</span>`;
       symbolRow.appendChild(symbolCell);
     });
   }
@@ -2197,7 +2644,7 @@ function buildForecast(data) {
     });
 
     const subRow = document.createElement("tr");
-    ["Condition", "Temp", "Max Gust"].forEach(() => {
+    ["Alerts", "Temp", "Max Gust"].forEach(() => {
       ["Morning", "Daytime", "Evening", "Night"].forEach((periodName) => {
         const th = document.createElement("th");
         th.textContent = periodName;
@@ -2363,7 +2810,7 @@ async function fetchWeather(lat, lon) {
     const url =
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
       `&current_weather=true` +
-      `&hourly=temperature_2m,weathercode,winddirection_10m,wind_speed_10m,windgusts_10m,relativehumidity_2m,shortwave_radiation` +
+      `&hourly=temperature_2m,weathercode,winddirection_10m,wind_speed_10m,windgusts_10m,relativehumidity_2m,shortwave_radiation,precipitation_probability,precipitation` +
       `&forecast_days=7` +
       `&timezone=auto`;
 
@@ -2413,6 +2860,19 @@ async function fetchWeather(lat, lon) {
         ? `${Math.round(currentSolar)} W/m²`
         : "—",
     );
+
+    try {
+      const activeAlerts = await fetchActiveAlerts(lat, lon);
+      if (activeAlerts.length) {
+        setTextById("wxAlerts", activeAlerts.join("; "));
+      } else {
+        setTextById("wxAlerts", "No active weather warnings");
+      }
+    } catch (alertError) {
+      console.warn("Weather alerts unavailable", alertError);
+      setTextById("wxAlerts", "No active weather warnings");
+    }
+
     setTextById("updatedInfo", `Updated: ${c.time}`);
 
     // Forecast table (hourly + 6h steps) from hourly payload
@@ -2426,6 +2886,8 @@ async function fetchWeather(lat, lon) {
       winddirection_10m: hourly.winddirection_10m || [],
       wind_speed_10m: hourly.wind_speed_10m || [],
       shortwave_radiation: hourly.shortwave_radiation || [],
+      precipitation_probability: hourly.precipitation_probability || [],
+      precipitation: hourly.precipitation || [],
     };
 
     const hasForecast =
