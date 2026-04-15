@@ -645,7 +645,10 @@ function initSettingsListeners() {
         awningNotifyHoursEl.disabled = !daylightToggle.checked;
       }
       if (awningNotifyHelpEl) {
-        awningNotifyHelpEl.classList.toggle("disabled", !daylightToggle.checked);
+        awningNotifyHelpEl.classList.toggle(
+          "disabled",
+          !daylightToggle.checked,
+        );
       }
     });
   }
@@ -2453,7 +2456,9 @@ function updateLookaheadSummary(
         );
       }
 
-      const summaryText = alerts.length ? `${alerts.join("; ")}.` : "No concerns.";
+      const summaryText = alerts.length
+        ? `${alerts.join("; ")}.`
+        : "No concerns.";
       lookaheadTableRows.push(
         `<tr><td class="lookahead-day">${dayLabel}</td><td class="lookahead-text">${summaryText}</td></tr>`,
       );
@@ -2576,7 +2581,11 @@ function setNext24Detail(elementId, text = "") {
   el.textContent = text || "";
 }
 
-function updateNext24Overview(segments, hourlyPoints, currentConditions = null) {
+function updateNext24Overview(
+  segments,
+  hourlyPoints,
+  currentConditions = null,
+) {
   if (!segments || !segments.length) return;
 
   const tempState = segments.reduce(
@@ -2699,20 +2708,12 @@ function updateNext24Overview(segments, hourlyPoints, currentConditions = null) 
 
   setNext24StatusPill(
     "next24TempStatus",
-    tempState.level === 2
-      ? "alarm"
-      : tempState.level === 1
-        ? "caution"
-        : "ok",
+    tempState.level === 2 ? "alarm" : tempState.level === 1 ? "caution" : "ok",
     tempLabel,
   );
   setNext24StatusPill(
     "next24WindStatus",
-    windState.level === 2
-      ? "alarm"
-      : windState.level === 1
-        ? "caution"
-        : "ok",
+    windState.level === 2 ? "alarm" : windState.level === 1 ? "caution" : "ok",
     windLabel,
   );
 
@@ -2752,7 +2753,10 @@ function updateNext24Overview(segments, hourlyPoints, currentConditions = null) 
   }
 }
 
-function buildForecast(data, currentConditions = window.cachedCurrentConditions || null) {
+function buildForecast(
+  data,
+  currentConditions = window.cachedCurrentConditions || null,
+) {
   const headerRow = document.getElementById("forecast24HeaderRow");
   const body24 = document.getElementById("forecast24Body");
   const rowsSummary = document.getElementById("forecastRowsSummary");
@@ -3113,7 +3117,12 @@ function buildForecast(data, currentConditions = window.cachedCurrentConditions 
   }
 
   const summaryRows = Object.values(dayStats).sort((a, b) => a.date - b.date);
-  updateLookaheadSummary(segments, hourlyPoints, summaryRows, currentConditions);
+  updateLookaheadSummary(
+    segments,
+    hourlyPoints,
+    summaryRows,
+    currentConditions,
+  );
 
   const header = document.getElementById("forecastSummaryHeader");
   if (header) {
