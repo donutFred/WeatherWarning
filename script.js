@@ -2323,33 +2323,94 @@ function updateLookaheadSummary(
     }
   }
 
+  const getNonWindBreachFromPoint = (point) => {
+    const pointDate = point.date instanceof Date ? point.date : new Date(point.date);
+    const minT = point.temp ?? point.minTemp;
+    const maxT = point.maxTemp ?? point.temp;
+    const code = point.code;
+
+    if (minT !== undefined && minT <= settings.minTempAlarm) {
+      return { date: pointDate, type: "cold", level: "alarm", temp: minT };
+    }
+    if (minT !== undefined && minT <= settings.minTempCaution) {
+      return { date: pointDate, type: "cold", level: "caution", temp: minT };
+    }
+    if (maxT !== undefined && maxT >= settings.maxTempAlarm) {
+      return { date: pointDate, type: "heat", level: "alarm", temp: maxT };
+    }
+    if (maxT !== undefined && maxT >= settings.maxTempCaution) {
+      return { date: pointDate, type: "heat", level: "caution", temp: maxT };
+    }
+    if (
+      code !== undefined &&
+      ((code >= 51 && code <= 67) || (code >= 80 && code <= 99)) &&
+      getWeatherSeverity(code) >= 4
+    ) {
+      return { date: pointDate, type: "rain", level: "caution" };
+    }
+
+    return null;
+  };
+
+  const getCurrentNonWindBreach = () => {
+    const currentTemp = Number(currentConditions?.currentTemp);
+    const currentCode = currentConditions?.weatherCode;
+
+    if (Number.isFinite(currentTemp)) {
+      if (currentTemp <= settings.minTempAlarm) {
+        return { type: "cold", level: "alarm", temp: currentTemp };
+      }
+      if (currentTemp <= settings.minTempCaution) {
+        return { type: "cold", level: "caution", temp: currentTemp };
+      }
+      if (currentTemp >= settings.maxTempAlarm) {
+        return { type: "heat", level: "alarm", temp: currentTemp };
+      }
+      if (currentTemp >= settings.maxTempCaution) {
+        return { type: "heat", level: "caution", temp: currentTemp };
+      }
+    }
+
+    if (currentCode !== undefined && getWeatherSeverity(currentCode) >= 4) {
+      const rainLevel = getRainAlertLevel(currentCode);
+      if (rainLevel >= 1) {
+        return { type: "rain", level: rainLevel >= 2 ? "alarm" : "caution" };
+      }
+    }
+
+    return null;
+  };
+
   const findNextNonWindBreach = () => {
-    for (const point of timeline) {
+    // If a non-wind warning is already active now, skip that ongoing episode and
+    // find the next upcoming action window.
+    const currentIdx = timeline.reduce((bestIdx, point, idx) => {
       const pointDate =
         point.date instanceof Date ? point.date : new Date(point.date);
-      const minT = point.temp ?? point.minTemp;
-      const maxT = point.maxTemp ?? point.temp;
-      const code = point.code;
+      if (pointDate <= now) return idx;
+      return bestIdx;
+    }, -1);
 
-      if (minT !== undefined && minT <= settings.minTempAlarm) {
-        return { date: pointDate, type: "cold", level: "alarm", temp: minT };
+    const currentBreachFromNow = getCurrentNonWindBreach();
+    const currentBreachFromTimeline =
+      currentIdx >= 0 ? getNonWindBreachFromPoint(timeline[currentIdx]) : null;
+    const currentBreach = currentBreachFromNow || currentBreachFromTimeline;
+
+    let startIdx = 0;
+    if (currentBreach) {
+      startIdx = Math.max(0, currentIdx + 1);
+      while (startIdx < timeline.length) {
+        const nextBreach = getNonWindBreachFromPoint(timeline[startIdx]);
+        if (!nextBreach || nextBreach.type !== currentBreach.type) {
+          break;
+        }
+        startIdx += 1;
       }
-      if (minT !== undefined && minT <= settings.minTempCaution) {
-        return { date: pointDate, type: "cold", level: "caution", temp: minT };
-      }
-      if (maxT !== undefined && maxT >= settings.maxTempAlarm) {
-        return { date: pointDate, type: "heat", level: "alarm", temp: maxT };
-      }
-      if (maxT !== undefined && maxT >= settings.maxTempCaution) {
-        return { date: pointDate, type: "heat", level: "caution", temp: maxT };
-      }
-      if (
-        code !== undefined &&
-        ((code >= 51 && code <= 67) || (code >= 80 && code <= 99)) &&
-        getWeatherSeverity(code) >= 4
-      ) {
-        return { date: pointDate, type: "rain", level: "caution" };
-      }
+    }
+
+    for (let i = startIdx; i < timeline.length; i++) {
+      const breach = getNonWindBreachFromPoint(timeline[i]);
+      if (breach) return breach;
     }
 
     for (const [dayIndex, entry] of summaryRows.entries()) {
@@ -3900,6 +3961,7 @@ async function fetchWeather(lat, lon) {
 
     window.cachedCurrentConditions = {
       time: c.time,
+      currentTemp: c.temperature,
       weatherCode: c.weathercode,
       weatherText: readableDesc,
       currentWindSpeed: c.windspeed,
