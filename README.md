@@ -16,9 +16,9 @@ Go easy on me please :)
 For now this is the basic website javascript version - I'm hoping that an iPhone app version or widget will happen next.
 
 To run:
-python3 -m http.server 8082
+python3 serve_https.py 8082
 (or whatever port you choose)
-then Open in your browser at http://localhost:8082
+then open in your browser at https://localhost:8082
 
 ## iPhone geolocation fix (not localhost)
 

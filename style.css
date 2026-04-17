@@ -641,6 +641,14 @@ h3 {
 }
 
 .today-solar-forecast-value.solar-cell {
+.legend-now-marker {
+  color: rgba(255, 175, 175, 0.95);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.legend-historical {
+  color: rgba(200, 220, 250, 0.9);
+}
   background: transparent !important;
   box-shadow: none !important;
   text-transform: none;
@@ -958,6 +966,14 @@ footer .final-note {
 #forecastTable24 thead tr#forecast24SymbolRow th + th,
 #forecastTable24 thead tr#forecast24HeaderRow th + th {
   border-left: none !important;
+}
+#forecastTable24 .historical-segment-cell {
+  background: rgba(88, 116, 156, 0.28) !important;
+  border-right: 1px solid rgba(180, 205, 240, 0.45) !important;
+}
+#forecastTable24 .historical-tag {
+  color: rgba(212, 228, 255, 0.95);
+  font-weight: 700;
 }
 
 #forecastTable24 .digits,

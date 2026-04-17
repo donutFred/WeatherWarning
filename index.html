@@ -224,7 +224,8 @@
           <div class="hourly-chart-legend note">
             <span class="legend-line-temp"></span> Temperature (line)
             <span class="legend-bar-rain"></span> Precipitation probability
-            (bars)
+            (bars) <span class="legend-now-marker">--- Now</span>
+            <span class="legend-historical">Shaded: last 2h actual</span>
           </div>
         </div>
         <div class="forecast24-legend note">
@@ -394,26 +395,27 @@
             <div class="awning-daylight-setting">
               <div class="awning-daylight-toggle-row">
                 <span class="awning-daylight-label"
-                  >Awning operation daylight hours only?</span
+                  >Are you willing to put the awning down during night hours?</span
                 >
                 <label class="switch">
                   <input
                     id="awningDaylightOnly"
                     type="checkbox"
                     checked
-                    aria-label="Awning operation daylight hours only"
+                    aria-label="Awning night-hours preference"
                   />
                   <span class="slider round"></span>
                 </label>
                 <span class="toggle-value-label" id="awningDaylightOnlyLabel"
-                  >YES</span
+                  >daytime only</span
                 >
               </div>
               <p class="setting-explanation">
-                If this is set to YES, you will only be advised to change the
-                awning status (set up / set down) during daylight hours. NOTE:
-                this may result in you being advised to bring down the awning in
-                advance of predicted high winds.
+                By default this is set to "daytime only" - which means you
+                will be advised to put down your awning before sunset if the
+                night time forecast winds are above caution level. If you
+                select "night or day" then you will be advised prior to high
+                forecast wind levels at any time.
               </p>
               <label
                 class="setting-inline-label"
