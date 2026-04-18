@@ -2324,7 +2324,8 @@ function updateLookaheadSummary(
   }
 
   const getNonWindBreachFromPoint = (point) => {
-    const pointDate = point.date instanceof Date ? point.date : new Date(point.date);
+    const pointDate =
+      point.date instanceof Date ? point.date : new Date(point.date);
     const minT = point.temp ?? point.minTemp;
     const maxT = point.maxTemp ?? point.temp;
     const code = point.code;
